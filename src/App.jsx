@@ -1,121 +1,173 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { AI_STRATEGIES } from './ai/strategies.js'
-import { initGame, drawTile, playerDiscard, aiTurn, playerClaimDiscard } from './game/gameEngine.js'
-import { tileSymbol, tileColor, tileLabel, tileKey, SUITS } from './game/tiles.js'
-import { translations } from './i18n.js'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { initGame, drawTile, playerDiscard, aiTurn, playerClaimDiscard, PLAYER_NAMES, SEAT_WINDS } from './game/gameEngine.js'
+import { tileKey, sortHand, getTenpaiTiles, calcShanten, analyzeHand, buildTileTracker, SUITS, WIND_NAMES, WIND_ZH, DRAGON_ZH } from './game/tiles.js'
 
-// ─── Language Context ─────────────────────────────────────────────────────────
-function useLang() {
-  const [lang, setLang] = useState('en')
-  const T = translations[lang]
-  const toggle = () => setLang(l => l === 'en' ? 'yue' : 'en')
-  return { lang, T, toggle }
+// ─── Tile face rendering ────────────────────────────────────────────────────
+const SUIT_EMOJI = {
+  bamboo:     ['🀐','🀑','🀒','🀓','🀔','🀕','🀖','🀗','🀘'],
+  characters: ['🀇','🀈','🀉','🀊','🀋','🀌','🀍','🀎','🀏'],
+  circles:    ['🀙','🀚','🀛','🀜','🀝','🀞','🀟','🀠','🀡'],
+  winds:      ['🀀','🀁','🀂','🀃'],
+  dragons:    ['🀄','🀅','🀆'],
 }
 
-// ─── Language Toggle Button ───────────────────────────────────────────────────
-function LangToggle({ lang, onToggle }) {
-  return (
-    <button className="btn lang-toggle" onClick={onToggle} title="切換語言 / Switch language">
-      {lang === 'en' ? '粵語' : 'English'}
-    </button>
-  )
+function tileContent(tile) {
+  if (tile.suit === 'winds') {
+    return <span className="tile-sym wind">{WIND_ZH[tile.value]}</span>
+  }
+  if (tile.suit === 'dragons') {
+    const cls = ['dragon-red','dragon-green','dragon-white'][tile.value]
+    return <span className={`tile-sym ${cls}`}>{DRAGON_ZH[tile.value]}</span>
+  }
+  const emoji = SUIT_EMOJI[tile.suit]?.[tile.value - 1] || '?'
+  return <span className={`tile-sym ${tile.suit}`}>{emoji}</span>
 }
 
-// ─── Tile Component ───────────────────────────────────────────────────────────
-function Tile({ tile, onClick, selected, isDrawn, isTenpaiWait }) {
-  const sym = tileSymbol(tile)
-  const col = tileColor(tile)
-  const label = SUITS.includes(tile.suit) ? tile.value : tileLabel(tile)
-  const cls = ['tile', selected && 'selected', isDrawn && 'drawn-tile', isTenpaiWait && 'tenpai-wait'].filter(Boolean).join(' ')
+// ─── Authentic Mahjong Tile ─────────────────────────────────────────────────
+function MJTile({ tile, selected, onClick, isDrawn, isWait, inDiscard, size }) {
+  const cls = [
+    'mj-tile',
+    selected ? 'sel' : '',
+    isDrawn ? 'drawn' : '',
+    isWait ? 'wait' : '',
+    inDiscard ? 'in-discard' : '',
+  ].filter(Boolean).join(' ')
+
   return (
-    <div className={cls} onClick={onClick} title={`${tile.suit} ${label}`}>
-      <span className="tile-symbol">{sym}</span>
-      <span className="tile-label" style={{ color: col }}>{label}</span>
+    <div className={cls} onClick={onClick} title={tileKey(tile)}>
+      {!inDiscard ? (
+        <div className="tile-face">{tileContent(tile)}</div>
+      ) : (
+        <div style={{fontSize:'13px',lineHeight:1}}>{SUIT_EMOJI[tile.suit]?.[SUITS.includes(tile.suit) ? tile.value-1 : tile.value] || (tile.suit==='winds'?WIND_ZH[tile.value]:DRAGON_ZH[tile.value])}</div>
+      )}
     </div>
   )
 }
 
-// ─── Setup Screen ─────────────────────────────────────────────────────────────
-function SetupScreen({ onStart, lang, onToggleLang }) {
-  const T = translations[lang]
-  const stratKeys = Object.keys(AI_STRATEGIES)
-  const [aiStrats, setAiStrats] = useState(['aggressive', 'defensive', 'greedy'])
-  const seats = [T.seatEast, T.seatSouth, T.seatWest]
+// ─── Tile Back ──────────────────────────────────────────────────────────────
+function TileBack({ small }) {
+  return <div className="tile-back" style={small ? {width:22,height:30} : {}} />
+}
 
-  const setStrat = (i, strat) => setAiStrats(prev => prev.map((s, j) => j === i ? strat : s))
+// ─── 記牌器 Tile Tracker ────────────────────────────────────────────────────
+function TileTracker({ state }) {
+  const tracker = useMemo(() => {
+    if (!state) return {}
+    return buildTileTracker(state.discards, state.wall)
+  }, [state?.discards, state?.wall?.length])
+
+  const suitRows = [
+    { label:'萬 Characters', suit:'characters', vals:[1,2,3,4,5,6,7,8,9] },
+    { label:'索 Bamboo',     suit:'bamboo',     vals:[1,2,3,4,5,6,7,8,9] },
+    { label:'筒 Circles',    suit:'circles',    vals:[1,2,3,4,5,6,7,8,9] },
+    { label:'字牌 Honours',  suit:'mixed',      keys:[
+      ...['winds-0','winds-1','winds-2','winds-3'],
+      ...['dragons-0','dragons-1','dragons-2']
+    ]},
+  ]
 
   return (
-    <div className="setup-screen">
-      <div className="setup-card">
-        <div className="lang-toggle-row">
-          <LangToggle lang={lang} onToggle={onToggleLang} />
-        </div>
-        <div className="setup-title">{T.setupTitle}</div>
-        <div className="setup-subtitle">{T.setupSubtitle}</div>
-
-        <div className="setup-section">
-          <div className="setup-label">{T.aiOpponents}</div>
-          <div className="ai-player-setup">
-            {[0, 1, 2].map(i => (
-              <div key={i} className="ai-player-row">
-                <div className="ai-player-name">{seats[i]}</div>
-                <div className="ai-strat-pills">
-                  {stratKeys.map(k => (
-                    <button
-                      key={k}
-                      className={`strat-pill${aiStrats[i] === k ? ' active' : ''}`}
-                      onClick={() => setStrat(i, k)}
-                    >
-                      {AI_STRATEGIES[k].emoji} {T.strategies[k].name.split(' ')[0]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+    <div className="tracker-panel">
+      <div className="tracker-title">🀫 記牌器</div>
+      {suitRows.map(row => (
+        <div key={row.label} className="tracker-suit">
+          <div className="tracker-suit-label">{row.label}</div>
+          <div className="tracker-row">
+            {row.suit !== 'mixed'
+              ? row.vals.map(v => {
+                  const k = `${row.suit}-${v}`
+                  const info = tracker[k] || { gone:0, total:4 }
+                  const avail = 4 - info.gone
+                  return (
+                    <div key={k} className={`tracker-tile avail-${avail}`} title={`${avail}/4 剩`}>
+                      {v}
+                      <span className="tracker-count">{avail}</span>
+                    </div>
+                  )
+                })
+              : row.keys.map(k => {
+                  const info = tracker[k] || { gone:0, total:4 }
+                  const avail = 4 - info.gone
+                  const [suit, val] = k.split('-')
+                  const lbl = suit==='winds' ? WIND_ZH[+val] : DRAGON_ZH[+val]
+                  return (
+                    <div key={k} className={`tracker-tile avail-${avail}`} title={`${avail}/4 剩`}>
+                      {lbl}
+                      <span className="tracker-count">{avail}</span>
+                    </div>
+                  )
+                })
+            }
           </div>
         </div>
+      ))}
+    </div>
+  )
+}
 
-        <div className="setup-section">
-          <div className="setup-label">{T.strategyGuide}</div>
-          <div className="strategy-grid">
-            {stratKeys.map(k => (
-              <div key={k} className="strategy-card">
-                <div className="strat-header">
-                  <span className="strat-emoji">{AI_STRATEGIES[k].emoji}</span>
-                  <span className="strat-name">{T.strategies[k].name}</span>
-                </div>
-                <div className="strat-desc">{T.strategies[k].description}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+// ─── Hint Panel ─────────────────────────────────────────────────────────────
+function HintPanel({ hand13, wallLength, discards }) {
+  const [show, setShow] = useState(true)
 
-        <button className="btn btn-primary" style={{ width: '100%', padding: '14px' }} onClick={() => onStart(aiStrats)}>
-          {T.startGame}
-        </button>
+  const analysis = useMemo(() => {
+    if (!hand13 || hand13.length < 13) return null
+    return analyzeHand(hand13, wallLength, discards)
+  }, [hand13?.map(t=>t.id).join(','), wallLength])
+
+  if (!analysis) return null
+  const { shanten, hints, tenpai } = analysis
+
+  const shantenCls = shanten === 0 ? 'shanten-0' : shanten === 1 ? 'shanten-1' : shanten === 2 ? 'shanten-2' : 'shanten-n'
+  const shantenText = shanten === 0 ? '聽牌！' : `差 ${shanten} 步聽牌`
+
+  const hintIcons = { tenpai:'🀄', 'discard-hint':'💡', pattern:'🎯', prob:'📊' }
+
+  return (
+    <div className="hint-panel">
+      <div className="hint-title">
+        💡 分析提示
+        <span className={`shanten-badge ${shantenCls}`}>{shantenText}</span>
+        <button className="hint-toggle" onClick={() => setShow(s=>!s)}>{show?'收起':'展開'}</button>
       </div>
+      {show && (
+        <>
+          {hints.length === 0 && <div style={{fontSize:'.65rem',color:'rgba(250,247,240,.4)',fontStyle:'italic'}}>繼續摸牌…</div>}
+          {hints.map((h, i) => (
+            <div key={i} className="hint-item">
+              <span className="hint-icon">{hintIcons[h.type] || '•'}</span>
+              <span className="hint-text" dangerouslySetInnerHTML={{__html: h.msg.replace(/（(.+?)）/g,'<strong>（$1）</strong>')}} />
+            </div>
+          ))}
+          {tenpai.length > 0 && (
+            <div style={{marginTop:'6px',fontSize:'.6rem',color:'rgba(200,151,58,.6)'}}>
+              等牌：{tenpai.map(t => {
+                if (t.suit==='winds') return WIND_ZH[t.value]
+                if (t.suit==='dragons') return DRAGON_ZH[t.value]
+                return `${t.value}${({bamboo:'索',characters:'萬',circles:'筒'})[t.suit]}`
+              }).join(' ')}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
 
-// ─── Discard Pile ─────────────────────────────────────────────────────────────
-function DiscardPile({ tiles, label, lastDiscard, onClaimDiscard, canClaim, claimTooltip }) {
+// ─── Discard Pool ────────────────────────────────────────────────────────────
+function DiscardPool({ tiles, label, lastDiscard, canClaim, onClaim }) {
   return (
-    <div className="discard-pile">
-      <div className="discard-pile-label">{label}</div>
-      <div className="discard-tiles">
+    <div className="dpool">
+      <div className="dpool-lbl">{label}</div>
+      <div className="dpool-tiles">
         {tiles.map((t, i) => {
-          const isLast = lastDiscard && t.id === lastDiscard.id && i === tiles.length - 1
+          const isLast = lastDiscard && t.id === lastDiscard.id && i === tiles.length-1
           const isClaimable = isLast && canClaim
           return (
-            <div
-              key={t.id}
-              className={`discard-tile${isLast ? ' last-discard' : ''}${isClaimable ? ' claimable' : ''}`}
-              onClick={isClaimable ? onClaimDiscard : undefined}
-              title={isClaimable ? claimTooltip : undefined}
-            >
-              {tileSymbol(t)}
-            </div>
+            <MJTile key={t.id} tile={t} inDiscard
+              onClick={isClaimable ? onClaim : undefined}
+              selected={isClaimable}
+              isWait={isClaimable}
+            />
           )
         })}
       </div>
@@ -123,38 +175,52 @@ function DiscardPile({ tiles, label, lastDiscard, onClaimDiscard, canClaim, clai
   )
 }
 
-// ─── Win Overlay ──────────────────────────────────────────────────────────────
-function WinOverlay({ state, onNewGame, T }) {
+// ─── Win Overlay ─────────────────────────────────────────────────────────────
+function WinOverlay({ state, onNew }) {
   const { winner, scores } = state
   const isDraw = winner === -1
-  const pnames = T.playerNames
-  const winnerName = isDraw ? T.nobody : pnames[winner]
-  const emoji = isDraw ? '🤝' : winner === 0 ? '🏆' : AI_STRATEGIES[state.aiStrategies[winner - 1]]?.emoji || '🎴'
-
-  const title = isDraw ? T.drawGame : winner === 0 ? T.youWon : T.wins(winnerName)
-  const subtitle = isDraw
-    ? T.drawDesc
-    : winner === 0
-    ? T.youWonDesc
-    : T.aiWonDesc(pnames[winner], T.strategies[state.aiStrategies[winner - 1]]?.name)
-
   return (
     <div className="overlay">
       <div className="win-card">
-        <div className="win-emoji">{emoji}</div>
-        <div className="win-title">{title}</div>
-        <div className="win-subtitle">{subtitle}</div>
+        <div className="win-em">{isDraw ? '🤝' : winner===0 ? '🏆' : '🎴'}</div>
+        <div className="win-t">{isDraw ? '流局！' : winner===0 ? '你贏啦！' : `${PLAYER_NAMES[winner]} 贏！`}</div>
+        <div className="win-s">{isDraw ? '牌墻摸完，今局流局。' : winner===0 ? '打得好！完美和牌！' : `${PLAYER_NAMES[winner]} 勝出。`}</div>
         <div className="win-scores">
-          {scores.map((s, i) => (
-            <div key={i} className="win-score-item">
-              <div className="win-score-name">{pnames[i]}</div>
-              <div className="win-score-val" style={{ color: i === winner ? '#f1c40f' : 'var(--gold-light)' }}>{s}</div>
+          {scores.map((s,i) => (
+            <div key={i} className={`ws${i===winner?' winner':''}`}>
+              <div className="ws-name">{PLAYER_NAMES[i]}</div>
+              <div className="ws-val">{s>0?'+':''}{s}</div>
             </div>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-          <button className="btn btn-primary" onClick={onNewGame}>{T.newGame}</button>
+        <button className="btn btn-gold" onClick={onNew} style={{width:'100%',padding:'10px'}}>新局</button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Setup Screen ─────────────────────────────────────────────────────────────
+function SetupScreen({ onStart }) {
+  return (
+    <div className="setup-screen">
+      <div className="setup-card">
+        <div className="setup-title">🀄 麻雀</div>
+        <div className="setup-sub">廣東麻雀 · 四人局 · 智能 AI 對戰</div>
+        <div className="setup-sec">
+          <div className="setup-lbl">玩法介紹</div>
+          <div className="rules-text">
+            • 每人派 13 張牌，輪流摸牌打牌<br/>
+            • 和牌：4 組（順子/刻子）+ 1 對將牌<br/>
+            • 自摸：摸到和牌 +8 分；食炮：+16 分<br/>
+            • 記牌器：追蹤剩餘張數，籌謀策略<br/>
+            • 提示系統：實時分析最優打法<br/>
+            • AI 採用智能策略，計算最佳捨牌
+          </div>
         </div>
+        <button className="btn btn-gold" style={{width:'100%',padding:'13px',fontSize:'.88rem',marginTop:'8px'}}
+          onClick={onStart}>
+          🀄 開局
+        </button>
       </div>
     </div>
   )
@@ -162,10 +228,8 @@ function WinOverlay({ state, onNewGame, T }) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const { lang, T, toggle: toggleLang } = useLang()
   const [screen, setScreen] = useState('setup')
   const [state, setState] = useState(null)
-  const [aiStrategies, setAiStrategies] = useState(['aggressive', 'defensive', 'greedy'])
   const [selectedTile, setSelectedTile] = useState(null)
   const logRef = useRef(null)
 
@@ -173,39 +237,33 @@ export default function App() {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
   }, [state?.log])
 
-  const startGame = useCallback((strats, currentT) => {
-    const usedT = currentT || T
-    setAiStrategies(strats)
-    const g = initGame(strats, usedT)
-    setState(g)
+  const startGame = useCallback(() => {
+    setState(initGame())
     setScreen('game')
     setSelectedTile(null)
-  }, [T])
+  }, [])
 
-  // AI auto-play loop
+  // AI loop
   useEffect(() => {
     if (!state || state.phase === 'finished') return
     if (state.currentPlayer !== 0) {
-      const timeout = setTimeout(() => {
-        setState(prev => {
-          if (!prev || prev.currentPlayer === 0) return prev
-          return aiTurn(prev, T)
-        })
-      }, 600 + Math.random() * 400)
-      return () => clearTimeout(timeout)
+      const t = setTimeout(() => {
+        setState(prev => prev && prev.currentPlayer !== 0 ? aiTurn(prev) : prev)
+      }, 550 + Math.random() * 350)
+      return () => clearTimeout(t)
     }
     if (state.currentPlayer === 0 && state.phase === 'draw' && !state.drawnTile) {
-      const timeout = setTimeout(() => {
-        setState(prev => prev && prev.phase === 'draw' && prev.currentPlayer === 0 ? drawTile(prev, T) : prev)
-      }, 300)
-      return () => clearTimeout(timeout)
+      const t = setTimeout(() => {
+        setState(prev => prev && prev.phase==='draw' && prev.currentPlayer===0 ? drawTile(prev) : prev)
+      }, 250)
+      return () => clearTimeout(t)
     }
-  }, [state, T])
+  }, [state])
 
   const handleTileClick = (tile) => {
     if (!state || state.currentPlayer !== 0 || state.phase !== 'discard') return
     if (selectedTile?.id === tile.id) {
-      setState(prev => playerDiscard(prev, tile.id, T))
+      setState(prev => playerDiscard(prev, tile.id))
       setSelectedTile(null)
     } else {
       setSelectedTile(tile)
@@ -214,159 +272,157 @@ export default function App() {
 
   const handleDiscard = () => {
     if (!selectedTile || !state) return
-    setState(prev => playerDiscard(prev, selectedTile.id, T))
+    setState(prev => playerDiscard(prev, selectedTile.id))
     setSelectedTile(null)
   }
 
   const handleClaim = () => {
     if (!state) return
-    setState(prev => playerClaimDiscard(prev, T))
+    setState(prev => playerClaimDiscard(prev))
   }
 
   const canClaim = state && state.lastDiscardPlayer !== 0 && state.currentPlayer !== 0
     && state.phase === 'draw' && state.lastDiscard
 
-  if (screen === 'setup') {
-    return <SetupScreen onStart={(strats) => startGame(strats, T)} lang={lang} onToggleLang={toggleLang} />
-  }
+  if (screen === 'setup') return <SetupScreen onStart={startGame} />
 
-  const pnames = T.playerNames
   const playerHand = state?.hands[0] || []
   const isPlayerTurn = state?.currentPlayer === 0
   const canDiscard = isPlayerTurn && state.phase === 'discard'
   const drawnTile = state?.drawnTile
+  const hand13 = drawnTile ? playerHand.filter(t=>t.id!==drawnTile.id) : playerHand
 
   return (
     <div className="app">
-      {state?.phase === 'finished' && (
-        <WinOverlay state={state} onNewGame={() => startGame(aiStrategies, T)} T={T} />
-      )}
+      {state?.phase === 'finished' && <WinOverlay state={state} onNew={startGame} />}
 
       {/* Header */}
-      <div className="header">
-        <h1>{T.appTitle}</h1>
-        <div className="scores">
-          {state?.scores.map((s, i) => (
-            <div key={i} className={`score-pill${i === 0 ? ' you' : ''}`}>
-              {pnames[i]}: {s}
-            </div>
-          ))}
+      <div className="hdr">
+        <div className="hdr-title">🀄 麻雀</div>
+        <div className="hdr-right">
+          <button className="btn btn-ghost" style={{fontSize:'.7rem'}} onClick={startGame}>新局</button>
+          <button className="btn btn-ghost" style={{fontSize:'.7rem'}} onClick={()=>setScreen('setup')}>⚙</button>
         </div>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <LangToggle lang={lang} onToggle={toggleLang} />
-          <button className="btn btn-ghost" style={{ fontSize: '0.75rem' }} onClick={() => setScreen('setup')}>
-            {T.setup}
-          </button>
-        </div>
+      </div>
+
+      {/* Scores */}
+      <div className="scores">
+        {state?.scores.map((s,i) => (
+          <div key={i} className={`sc${i===state.currentPlayer?' cur':''}`}>
+            <div className="sc-name">{PLAYER_NAMES[i]} {SEAT_WINDS[i]}</div>
+            <div className="sc-sub">{state.hands[i]?.length} 張牌</div>
+            <div className="sc-pts">{s>0?'+':''}{s}</div>
+          </div>
+        ))}
       </div>
 
       {/* Table */}
       <div className="table">
-        {/* Top AI — South */}
-        <div className="ai-panel top">
+
+        {/* Top — South (AI 2) */}
+        <div className="aip top">
           <div>
-            <div className="ai-name">{AI_STRATEGIES[state?.aiStrategies[1]]?.emoji} {pnames[2]}</div>
-            <div className="ai-strategy">{T.strategies[state?.aiStrategies[1]]?.name}</div>
-            <div className="ai-tile-count">{state?.hands[2]?.length} {T.tiles}</div>
+            <div className="ai-label">{PLAYER_NAMES[2]} 南</div>
+            <div className="ai-sub">智能 AI</div>
+            <div className="ai-count">剩 {state?.hands[2]?.length} 張</div>
           </div>
-          <div className="ai-tiles-hidden">
-            {state?.hands[2]?.map(t => <div key={t.id} className="ai-tile-back" />)}
+          <div className="ai-rack">
+            {state?.hands[2]?.map(t => <TileBack key={t.id} small />)}
           </div>
-          <DiscardPile tiles={state?.discards[2] || []} label={T.southDiscards} lastDiscard={null} canClaim={false} claimTooltip={T.claimTooltip} />
+          <DiscardPool tiles={state?.discards[2]||[]} label="南家棄牌" lastDiscard={null} canClaim={false} />
         </div>
 
-        {/* Left AI — East */}
-        <div className="ai-panel left">
-          <div className="ai-name">{AI_STRATEGIES[state?.aiStrategies[0]]?.emoji} {pnames[1]}</div>
-          <div className="ai-strategy">{T.strategies[state?.aiStrategies[0]]?.name}</div>
-          <div className="ai-tile-count">{state?.hands[1]?.length} {T.tiles}</div>
-          <div className="ai-tiles-hidden" style={{ marginTop: '4px' }}>
-            {state?.hands[1]?.map(t => <div key={t.id} className="ai-tile-back" />)}
+        {/* Left — East (AI 1) */}
+        <div className="aip left">
+          <div className="ai-label">{PLAYER_NAMES[1]} 東</div>
+          <div className="ai-sub">智能 AI</div>
+          <div className="ai-count">剩 {state?.hands[1]?.length} 張</div>
+          <div className="ai-rack" style={{flexDirection:'column',marginTop:'4px'}}>
+            {state?.hands[1]?.map(t => <TileBack key={t.id} small />)}
           </div>
-          <div style={{ marginTop: '6px' }}>
-            <DiscardPile tiles={state?.discards[1] || []} label={T.eastDiscards} lastDiscard={null} canClaim={false} claimTooltip={T.claimTooltip} />
-          </div>
+          <DiscardPool tiles={state?.discards[1]||[]} label="東家棄牌" lastDiscard={null} canClaim={false} />
         </div>
 
         {/* Center */}
         <div className="center">
-          <div className="center-info">
-            <div className="wind-indicator">🀀</div>
-            <div className="wall-count">{T.wall}: {state?.wall?.length || 0} {T.tiles}</div>
-            {state?.currentPlayer !== undefined && (
-              <div style={{ fontSize: '0.7rem', color: 'var(--gold-light)', marginTop: '4px' }}>
-                {isPlayerTurn ? T.yourTurn : T.turnOf(pnames[state.currentPlayer])}
-              </div>
-            )}
+          <div className="center-top">
+            <div className="wall-badge">
+              <div className="wall-num">{state?.wall?.length ?? 0}</div>
+              <div className="wall-lbl">剩餘張數</div>
+            </div>
+            <div className="turn-lbl">
+              {isPlayerTurn ? '⭐ 輪到你' : `${PLAYER_NAMES[state?.currentPlayer]} 行牌`}
+            </div>
           </div>
 
-          <div className="discards-area">
-            <DiscardPile tiles={state?.discards[0] || []} label={T.yourDiscards} lastDiscard={null} canClaim={false} claimTooltip={T.claimTooltip} />
-            <DiscardPile tiles={state?.discards[3] || []} label={T.westDiscards} lastDiscard={state?.lastDiscard} onClaimDiscard={handleClaim} canClaim={canClaim} claimTooltip={T.claimTooltip} />
+          <div className="discards-grid">
+            <DiscardPool tiles={state?.discards[0]||[]} label="你嘅棄牌" lastDiscard={null} canClaim={false} />
+            <DiscardPool tiles={state?.discards[3]||[]} label="西家棄牌"
+              lastDiscard={state?.lastDiscard} canClaim={canClaim} onClaim={handleClaim} />
           </div>
 
-          <div className="status-log" ref={logRef}>
-            {state?.log?.slice(-20).map((entry, i) => (
-              <div key={i} className="log-entry">{entry}</div>
-            ))}
+          <div className="log" ref={logRef}>
+            {state?.log?.slice(-20).map((e,i)=><div key={i} className="log-e">{e}</div>)}
           </div>
         </div>
 
-        {/* Right AI — West */}
-        <div className="ai-panel right">
-          <div className="ai-name">{AI_STRATEGIES[state?.aiStrategies[2]]?.emoji} {pnames[3]}</div>
-          <div className="ai-strategy">{T.strategies[state?.aiStrategies[2]]?.name}</div>
-          <div className="ai-tile-count">{state?.hands[3]?.length} {T.tiles}</div>
-          <div className="ai-tiles-hidden" style={{ marginTop: '4px' }}>
-            {state?.hands[3]?.map(t => <div key={t.id} className="ai-tile-back" />)}
+        {/* Right — West (AI 3) */}
+        <div className="aip right">
+          <div className="ai-label">{PLAYER_NAMES[3]} 西</div>
+          <div className="ai-sub">智能 AI</div>
+          <div className="ai-count">剩 {state?.hands[3]?.length} 張</div>
+          <div className="ai-rack" style={{flexDirection:'column',marginTop:'4px'}}>
+            {state?.hands[3]?.map(t => <TileBack key={t.id} small />)}
           </div>
-          <div style={{ marginTop: '6px' }}>
-            <DiscardPile tiles={state?.discards[3] || []} label={T.westDiscards} lastDiscard={state?.lastDiscard} onClaimDiscard={handleClaim} canClaim={canClaim} claimTooltip={T.claimTooltip} />
-          </div>
+          <DiscardPool tiles={state?.discards[3]||[]} label="西家棄牌"
+            lastDiscard={state?.lastDiscard} canClaim={canClaim} onClaim={handleClaim} />
         </div>
 
-        {/* Player hand */}
-        <div className="player-area">
-          <div className="player-label">
-            {T.yourHand(playerHand.length)}
+        {/* Player hand — bottom */}
+        <div className="hand-area">
+          <div className="hand-top">
+            <div className="hand-title">你嘅手牌</div>
+            <div className="hand-meta">共 {playerHand.length} 張</div>
             {state?.tenpaiTiles?.length > 0 && (
-              <span className="tenpai-badge">{T.tenpai(state.tenpaiTiles.length)}</span>
+              <span className="tenpai-badge">✨ 聽牌！等 {state.tenpaiTiles.length} 種</span>
             )}
             {canDiscard && !selectedTile && (
-              <span style={{ fontSize: '0.7rem', color: 'rgba(245,240,232,0.5)' }}>
-                {T.clickHint}
-              </span>
+              <span style={{fontSize:'.65rem',color:'rgba(250,247,240,.4)'}}>撳牌選擇，再撳打出</span>
             )}
           </div>
-          <div className="player-hand">
-            {playerHand.map((tile) => {
+
+          {/* Straight-line hand rack */}
+          <div className="hand-rack">
+            {playerHand.map(tile => {
               const isDrawn = drawnTile && tile.id === drawnTile.id
-              const isTenpai = state?.tenpaiTiles?.some(t => tileKey(t) === tileKey(tile))
+              const isWait = state?.tenpaiTiles?.some(t => tileKey(t) === tileKey(tile))
               return (
-                <Tile
-                  key={tile.id}
-                  tile={tile}
-                  onClick={() => handleTileClick(tile)}
+                <MJTile key={tile.id} tile={tile}
                   selected={selectedTile?.id === tile.id}
-                  isDrawn={isDrawn}
-                  isTenpaiWait={isTenpai}
+                  isDrawn={isDrawn} isWait={isWait}
+                  onClick={() => handleTileClick(tile)}
                 />
               )
             })}
           </div>
+
           <div className="actions">
-            <button className="btn btn-danger" disabled={!selectedTile || !canDiscard} onClick={handleDiscard}>
-              {T.discardSelected}
+            <button className="btn btn-red" disabled={!selectedTile||!canDiscard} onClick={handleDiscard}>
+              打出所選
             </button>
             {canClaim && (
-              <button className="btn btn-success" onClick={handleClaim}>
-                {T.claimDiscard}
-              </button>
+              <button className="btn btn-green" onClick={handleClaim}>🀄 食炮！</button>
             )}
-            <button className="btn btn-ghost" onClick={() => startGame(aiStrategies, T)}>
-              {T.newGame}
-            </button>
+            <button className="btn btn-ghost" onClick={startGame} style={{marginLeft:'auto'}}>新局</button>
           </div>
+
+          {/* Hint panel */}
+          {isPlayerTurn && (
+            <HintPanel hand13={hand13} wallLength={state?.wall?.length||0} discards={state?.discards||[]} />
+          )}
+
+          {/* Tile tracker */}
+          <TileTracker state={state} />
         </div>
       </div>
     </div>
