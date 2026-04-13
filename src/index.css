@@ -324,3 +324,17 @@ html,body,#root{height:100%;font-family:'Noto Serif TC',serif;background:var(--f
 .setup-sub{text-align:center;color:rgba(200,151,58,.5);font-size:.7rem;margin-bottom:20px;letter-spacing:.06em}
 .setup-sec{margin-bottom:16px}
 .setup-lbl{font-size:.6rem;color:rgba(200,151,58,.5);letter-spacing:.12em;text-transform:uppercase;font-weight:700;margin-bottom:9px;padding-bottom:5px;border-bottom:1px solid rgba(200,151,58,.12)}
+
+/* ─── HK Mahjong additions ─────────────────────────────────────────────────── */
+.sc.dealer{border-color:var(--gold)!important;background:rgba(200,151,58,.22)!important}
+.win-fan-display{background:rgba(0,0,0,.4);border:1px solid rgba(200,151,58,.35);border-radius:8px;padding:10px 16px;margin-bottom:14px;text-align:center}
+.win-fan-labels{font-size:.78rem;color:var(--gold2);margin-bottom:4px}
+.win-fan-num{font-size:2rem;font-weight:900;color:var(--gold3);line-height:1}
+.win-fan-pts{font-size:.65rem;color:rgba(200,151,58,.6);margin-top:3px}
+.melds-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.meld-group{display:flex;gap:1px;background:rgba(0,0,0,.25);border:1px solid rgba(200,151,58,.2);border-radius:4px;padding:3px 5px;position:relative}
+.meld-type-lbl{position:absolute;top:-7px;left:4px;font-size:.5rem;background:var(--gold);color:white;padding:0 4px;border-radius:4px;font-weight:700}
+.flower-row{display:flex;gap:3px;flex-wrap:wrap;margin-top:2px}
+.flower-tile-sm{font-size:14px;opacity:.85}
+.mj-tile.flower-tile{background:linear-gradient(135deg,#fffef0,#fef8cc)!important;border-color:var(--gold)!important}
+/* sim stuff already in prior additions */
