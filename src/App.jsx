@@ -247,13 +247,13 @@ function SimDashboard({ simData, strategies, onBack, onRunMore }) {
 }
 
 // ─── Hint panel ───────────────────────────────────────────────────────────────
-function HintPanel({ hand, melds, wallLength, discards, seatWind, roundWind }) {
+function HintPanel({ hand, melds, wallLength }) {
   const [show, setShow] = useState(true)
-  const hand13 = hand.filter(t=>!t.isFlower).slice(0,13)
   const analysis = useMemo(() => {
-    if (hand13.length < 2) return null
-    return analyzeHand(hand13, melds||[], wallLength, discards||[], seatWind||0, roundWind||0)
-  }, [hand13.map(t=>t.id).join(','), wallLength])
+    if (!hand || hand.length < 2) return null
+    try { return analyzeHand(hand, melds || [], wallLength) }
+    catch { return null }
+  }, [hand.map(t=>t.id).join(','), wallLength])
 
   if (!analysis) return null
   const { shanten, tenpai, hints } = analysis
@@ -513,29 +513,33 @@ export default function App() {
     setScreen('sim')
   }, [])
 
-  // AI loop
+  // AI loop — trigger only on currentPlayer + phase changes to avoid thrashing
   useEffect(() => {
-    if (!handState || handState.phase === 'finished' || handState.phase === 'exhausted') return
+    if (!handState) return
+    if (handState.phase === 'finished' || handState.phase === 'exhausted') return
     if (handState.currentPlayer === PLAYER) return
     const t = setTimeout(() => {
       setHandState(prev => {
         if (!prev || prev.currentPlayer === PLAYER) return prev
+        if (prev.phase === 'finished' || prev.phase === 'exhausted') return prev
         return aiTurn(prev)
       })
-    }, 450 + Math.random() * 250)
+    }, 420 + Math.random() * 200)
     return () => clearTimeout(t)
-  }, [handState])
+  }, [handState?.currentPlayer, handState?.phase])
 
-  // Player auto-draw
+  // Player auto-draw — only fire when it's player's draw turn
   useEffect(() => {
-    if (!handState || handState.currentPlayer !== PLAYER) return
-    if (handState.phase === 'draw') {
-      const t = setTimeout(() => {
-        setHandState(prev => prev && prev.phase === 'draw' && prev.currentPlayer === PLAYER ? drawTile(prev) : prev)
-      }, 250)
-      return () => clearTimeout(t)
-    }
-  }, [handState])
+    if (!handState) return
+    if (handState.currentPlayer !== PLAYER || handState.phase !== 'draw') return
+    const t = setTimeout(() => {
+      setHandState(prev => {
+        if (!prev || prev.currentPlayer !== PLAYER || prev.phase !== 'draw') return prev
+        return drawTile(prev)
+      })
+    }, 200)
+    return () => clearTimeout(t)
+  }, [handState?.currentPlayer, handState?.phase])
 
   const handleTileClick = tile => {
     if (!handState || handState.currentPlayer !== PLAYER || handState.phase !== 'discard') return
@@ -556,7 +560,14 @@ export default function App() {
     setSelectedTile(null)
   }
 
-  const canClaim = handState && handState.lastDiscardPlayer !== PLAYER && handState.currentPlayer !== PLAYER && handState.phase === 'draw' && handState.lastDiscard
+  // canClaim: a discard exists, it's NOT the player's discard, and we're in draw phase
+  // (before the next player draws, anyone can claim Ron)
+  const canClaim = !!(
+    handState &&
+    handState.phase === 'draw' &&
+    handState.lastDiscard &&
+    handState.lastDiscardPlayer !== PLAYER
+  )
 
   if (screen === 'sim') return <SimDashboard simData={simData} strategies={simStrats} onBack={()=>setScreen('setup')} onRunMore={()=>handleSimulate(simStrats,simRuns)}/>
   if (screen === 'setup') return <SetupScreen onStart={startSession} onSimulate={handleSimulate} rankings={rankings}/>
@@ -593,7 +604,7 @@ export default function App() {
         {handState?.scores.map((s,i)=>(
           <div key={i} className={`sc${i===handState.currentPlayer?' cur':''}${i===session?.dealerSeat?' dealer':''}`}>
             <div className="sc-name">{i===0?'你':PLAYER_NAMES[i]} {i===session?.dealerSeat?'⭐':''}</div>
-            <div className="sc-sub">{i===0?`${WIND_ZH[handState?.seatWinds?.[i]||0]}家`:`${AI_STRATEGIES[aiStrats[i-1]]?.emoji} ${AI_STRATEGIES[aiStrats[i-1]]?.name}`}</div>
+            <div className="sc-sub">{i===0?`${WIND_ZH[handState?.seatWinds?.[i]??i]}家`:`${AI_STRATEGIES[aiStrats[i-1]]?.emoji} ${AI_STRATEGIES[aiStrats[i-1]]?.name}`}</div>
             <div className="sc-pts">{s>0?'+':''}{s}</div>
             <FlowerDisplay flowers={handState?.flowers?.[i]||[]}/>
           </div>
@@ -674,7 +685,7 @@ export default function App() {
             {canClaim && <button className="btn btn-green" onClick={handleClaim}>🀄 食炮！</button>}
             <button className="btn btn-ghost" onClick={()=>setScreen('setup')} style={{marginLeft:'auto'}}>⚙</button>
           </div>
-          {isPlayerTurn && <HintPanel hand={playerHand} melds={handState?.melds?.[PLAYER]||[]} wallLength={handState?.wall?.length||0} discards={handState?.discards||[]} seatWind={handState?.seatWinds?.[PLAYER]||0} roundWind={handState?.roundWind||0}/>}
+          {isPlayerTurn && <HintPanel hand={playerHand} melds={handState?.melds?.[PLAYER]||[]} wallLength={handState?.wall?.length||0}/>}
           <TileTracker discards={handState?.discards||[[],[],[],[]]} melds={handState?.melds||[[],[],[],[]]}/>
         </div>
       </div>
