@@ -341,3 +341,88 @@ body{overflow-x:hidden;}
 .flower-tile-sm{font-size:14px;opacity:.85}
 .mj-tile.flower-tile{background:linear-gradient(135deg,#fffef0,#fef8cc)!important;border-color:var(--gold)!important}
 /* sim stuff already in prior additions */
+
+/* ─── Flower tiles ─────────────────────────────────────────────────────────── */
+.flower-face{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0}
+.flower-char{font-size:1.2rem;line-height:1;font-family:'Noto Serif TC',serif;font-weight:700}
+.flower-num{font-size:.5rem;line-height:1;font-weight:700;font-family:'Noto Serif TC',serif;margin-top:1px}
+.flower-badge{display:inline-flex;flex-direction:column;align-items:center;padding:2px 4px;
+  border-radius:3px;border:1.5px solid;background:rgba(255,255,255,.06);margin:1px}
+.fb-char{font-size:.9rem;font-family:'Noto Serif TC',serif;font-weight:700;line-height:1}
+.fb-num{font-size:.45rem;font-weight:700;line-height:1}
+
+/* ─── Discard tiles — bigger and clearer ──────────────────────────────────── */
+.discard-face{font-size:17px;line-height:1;display:flex;align-items:center;justify-content:center}
+.mj-tile.in-discard{width:26px;height:36px;border-radius:3px;cursor:default;font-size:16px;
+  border-width:1.5px;box-shadow:1px 1.5px 0 #a89848,1px 1.5px 3px rgba(0,0,0,.3)}
+.mj-tile.in-discard:hover{transform:none;box-shadow:1px 1.5px 0 #a89848,1px 1.5px 3px rgba(0,0,0,.3)}
+.mj-tile.in-discard.sel,.mj-tile.in-discard.wait{
+  border-color:#27ae60!important;box-shadow:0 0 8px rgba(39,174,96,.9)!important;cursor:pointer}
+
+/* ─── Tracker tiles — Unicode symbols ─────────────────────────────────────── */
+.tracker-tile{width:32px;height:36px;border-radius:3px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;border:1px solid transparent;transition:all .2s;position:relative;cursor:default}
+.tracker-sym{font-size:18px;line-height:1}
+.tracker-count{font-size:.48rem;font-weight:700;line-height:1;margin-top:1px}
+.tracker-tile.avail-4{background:rgba(39,174,96,.2);border-color:rgba(39,174,96,.45);color:#6fcf97}
+.tracker-tile.avail-3{background:rgba(39,174,96,.12);border-color:rgba(39,174,96,.28);color:#8fcfa7}
+.tracker-tile.avail-2{background:rgba(255,200,0,.1);border-color:rgba(255,200,0,.3);color:#f0c040}
+.tracker-tile.avail-1{background:rgba(255,100,0,.1);border-color:rgba(255,100,0,.3);color:#e08040}
+.tracker-tile.avail-0{background:rgba(80,80,80,.08);border-color:rgba(80,80,80,.15);color:rgba(255,255,255,.18);filter:grayscale(1)}
+
+/* ─── Simulation progress screen ──────────────────────────────────────────── */
+.sim-progress-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 50% 40%,#1a4a2e 0%,#0a2018 70%)}
+.sim-progress-card{background:rgba(15,40,25,.96);border:1px solid rgba(200,151,58,.35);border-radius:14px;
+  padding:36px 44px;max-width:460px;width:90%;text-align:center;box-shadow:0 0 40px rgba(0,0,0,.5)}
+.sim-progress-title{font-size:1.4rem;font-weight:900;color:var(--gold2);margin-bottom:18px}
+.sim-progress-bar-wrap{height:10px;background:rgba(255,255,255,.08);border-radius:8px;overflow:hidden;margin-bottom:12px}
+.sim-progress-bar{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:8px;
+  transition:width .3s ease}
+.sim-progress-text{font-size:.85rem;color:rgba(200,151,58,.7);margin-bottom:10px}
+.sim-progress-log{text-align:left;background:rgba(0,0,0,.3);border-radius:6px;padding:8px;margin-top:8px;min-height:40px}
+
+/* ─── Sim Dashboard tabs ───────────────────────────────────────────────────── */
+.sim-tabs{display:flex;gap:5px;margin-top:10px;justify-content:center}
+.sim-tab{padding:6px 14px;border-radius:5px;border:1px solid rgba(200,151,58,.25);background:transparent;
+  color:rgba(200,151,58,.6);font-size:.7rem;cursor:pointer;font-family:'Noto Serif TC',serif;transition:all .15s}
+.sim-tab.act{background:rgba(200,151,58,.2);border-color:var(--gold);color:var(--gold2);font-weight:700}
+
+/* ─── Sim stat cards ───────────────────────────────────────────────────────── */
+.sim-stat-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+@media(max-width:700px){.sim-stat-cards{grid-template-columns:1fr 1fr}}
+.sim-stat-card{background:rgba(0,0,0,.35);border:1px solid rgba(200,151,58,.15);border-radius:8px;
+  padding:10px 12px;border-top:3px solid rgba(200,151,58,.3)}
+.ssc-name{font-size:.72rem;font-weight:700;margin-bottom:2px}
+.ssc-theory{font-size:.55rem;color:rgba(250,247,240,.4);margin-bottom:8px;font-style:italic}
+.ssc-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px}
+.ssc-item{display:flex;flex-direction:column;gap:1px}
+.ssc-lbl{font-size:.5rem;color:rgba(250,247,240,.4);letter-spacing:.06em}
+.ssc-val{font-size:.85rem;font-weight:700;color:var(--gold2)}
+.ssc-bar-wrap{height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden}
+.ssc-bar{height:100%;border-radius:3px;transition:width .4s}
+
+/* ─── Per-game log table ───────────────────────────────────────────────────── */
+.game-log-table-wrap{overflow-x:auto;max-height:480px;overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:rgba(200,151,58,.2) transparent}
+.game-log-table{width:100%;border-collapse:collapse;font-size:.68rem}
+.game-log-table th{padding:6px 8px;background:rgba(0,0,0,.5);border-bottom:1px solid rgba(200,151,58,.2);
+  text-align:left;font-weight:700;color:rgba(200,151,58,.6);font-size:.58rem;text-transform:uppercase;
+  position:sticky;top:0;z-index:1}
+.game-log-table td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--cream)}
+.game-log-table tr:hover td{background:rgba(255,255,255,.03)}
+.draw-row td{opacity:.6}
+.p0-row td{background:rgba(200,151,58,.06)}
+.expand-btn{background:none;border:1px solid rgba(200,151,58,.25);color:rgba(200,151,58,.6);
+  border-radius:3px;cursor:pointer;font-size:.6rem;padding:1px 5px;font-family:'Noto Serif TC',serif}
+.game-detail-row{padding:0!important}
+.game-detail{background:rgba(0,0,0,.4);padding:10px 14px;border-bottom:1px solid rgba(200,151,58,.15)}
+.game-detail-grid{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:8px;font-size:.65rem}
+.game-log-scroll{max-height:140px;overflow-y:auto;background:rgba(0,0,0,.3);border-radius:4px;padding:5px 8px;
+  scrollbar-width:thin;scrollbar-color:rgba(200,151,58,.15) transparent}
+.game-log-line{font-size:.6rem;color:rgba(250,247,240,.6);padding:1px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.game-log-line:last-child{color:var(--cream);border:none}
+
+/* ─── Sim charts grid ──────────────────────────────────────────────────────── */
+.sim-charts-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+@media(max-width:700px){.sim-charts-grid{grid-template-columns:1fr 1fr}}
