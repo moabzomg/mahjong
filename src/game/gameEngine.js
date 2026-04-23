@@ -1,370 +1,511 @@
-// ─── Hong Kong Mahjong — Game Engine ─────────────────────────────────────────
 import {
-  buildWall, sortHand, checkWin, getTenpaiTiles, tileKey,
-  calcShanten, calcFan, isSevenPairs, SUITS, WIND_ZH
-} from './tiles.js'
-import { aiDiscard, aiWantsRon } from '../ai/strategies.js'
+  buildWall, isFlower, sortHand, checkWin, calcFan, fanToPoints,
+  tileKey, SUITS, WINDS, analyzeHand
+} from './tiles.js';
+import { aiDiscard, aiWantsPong, aiWantsChi } from '../ai/strategies.js';
 
-export const PLAYER      = 0
-export const PLAYER_NAMES = ['你', 'AI 東', 'AI 南', 'AI 西']
-export const SEAT_WINDS   = ['東', '南', '西', '北']
-export const ROUND_NAMES  = ['東圈', '南圈', '西圈', '北圈']
+// ─── Session Init ─────────────────────────────────────────────────────────────
 
-// ─── Session ──────────────────────────────────────────────────────────────────
-export function initGameSession(aiStrategies) {
+export function createSession(players, minFan = 3) {
   return {
-    round:          0,
-    dealerSeat:     0,
-    dealerWins:     0,
-    handsInRound:   0,
-    totalHands:     0,
-    sessionScores:  [0, 0, 0, 0],
-    aiStrategies:   aiStrategies || ['nash', 'dragon', 'tortoise'],
-    phase:          'hand',
-    handResults:    [],
-  }
+    players,          // [{name, isHuman, strategy}]
+    scores: players.map(() => 0),
+    dealer: 0,
+    round: 0,         // 0=東 1=南 2=西 3=北
+    handsPlayed: 0,
+    minFan,
+  };
 }
 
-// ─── Deal a new hand ──────────────────────────────────────────────────────────
+// ─── Deal Hand ────────────────────────────────────────────────────────────────
+
 export function startHand(session) {
-  let wall    = buildWall()
-  const hands   = [[], [], [], []]
-  const flowers = [[], [], [], []]
+  const wall = buildWall();
+  const deadWall = wall.splice(wall.length - 14); // Keep 14 for supplements
+  const hands = [[], [], [], []];
 
-  // Draw a tile, auto-skipping flowers into the flower pile
-  function drawFrom(wall, playerIdx) {
-    while (wall.length > 0) {
-      const t = wall.pop()
-      if (t.isFlower) { flowers[playerIdx].push(t); continue }
-      return { tile: t, wall }
-    }
-    return { tile: null, wall }
-  }
-
-  // Deal 13 tiles each
-  for (let i = 0; i < 13; i++) {
+  // Deal 13 each
+  for (let round = 0; round < 13; round++) {
     for (let p = 0; p < 4; p++) {
-      const r = drawFrom(wall, p)
-      wall = r.wall
-      if (r.tile) hands[p].push(r.tile)
+      hands[p].push(wall.pop());
     }
   }
+  // Dealer gets 14th
+  hands[session.dealer].push(wall.pop());
 
-  // Dealer draws 14th tile
-  const dealer = session.dealerSeat
-  {
-    const r = drawFrom(wall, dealer)
-    wall = r.wall
-    if (r.tile) hands[dealer].push(r.tile)
-  }
+  // Auto-補花: replace flower tiles
+  const flowers = [[], [], [], []];
+  let supplementIdx = 0;
 
-  // 補花: supplement flowers — each player who drew flowers draws replacements
   for (let p = 0; p < 4; p++) {
-    let needed = flowers[p].length
-    while (needed > 0 && wall.length > 0) {
-      const r = drawFrom(wall, p)
-      wall = r.wall
-      if (r.tile) { hands[p].push(r.tile); needed-- }
-      else break
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let i = 0; i < hands[p].length; i++) {
+        if (isFlower(hands[p][i])) {
+          flowers[p].push(hands[p][i]);
+          hands[p].splice(i, 1);
+          // Draw supplement
+          const supp = deadWall[supplementIdx++] || wall.pop();
+          if (supp) { hands[p].push(supp); changed = true; }
+          i--;
+        }
+      }
     }
+    hands[p] = sortHand(hands[p]);
   }
 
-  // Dealer's last tile is their "drawn" tile for tsumo check
-  const drawnTile = hands[dealer][hands[dealer].length - 1] || null
-
-  const seatWinds = [0, 1, 2, 3].map(i => (dealer + i) % 4)
+  const seatWinds = [0, 1, 2, 3].map(i => (session.dealer + i) % 4);
 
   return {
+    session,
     wall,
-    hands:             hands.map(h => sortHand(h)),
-    melds:             [[], [], [], []],
+    deadWall: deadWall.slice(supplementIdx),
+    hands,
+    melds: [[], [], [], []],
+    discards: [[], [], [], []],
     flowers,
-    discards:          [[], [], [], []],
-    currentPlayer:     dealer,
-    phase:             'discard',   // dealer starts in discard phase (already has 14 tiles)
-    drawnTile,
-    lastDiscard:       null,
-    lastDiscardPlayer: null,
-    winner:            null,
-    winFan:            null,
-    winLabels:         [],
-    isTsumo:           false,
-    scores:            [...session.sessionScores],
     seatWinds,
-    roundWind:         session.round,
-    dealerSeat:        session.dealerSeat,
-    aiStrategies:      session.aiStrategies,
-    tenpaiTiles:       [],
-    log:               [`${ROUND_NAMES[session.round]} 第${session.totalHands + 1}局 — ${PLAYER_NAMES[dealer]}（${WIND_ZH[seatWinds[dealer]]}）做莊`],
-    stats: {
-      turns: 0, tilesDrawn: [0,0,0,0], discardCount: [0,0,0,0],
-      winTypes: [], scoreHistory: [[...session.sessionScores]],
-    },
-  }
+    currentPlayer: session.dealer,
+    drawnTile: hands[session.dealer][hands[session.dealer].length - 1], // last tile = drawn
+    phase: 'discard',  // discard | draw | claiming | finished
+    claimPending: null,
+    lastDiscard: null,
+    lastDiscarder: null,
+    log: [`局開始 — 莊家：${session.players[session.dealer].name}`],
+    result: null,
+  };
 }
 
-// ─── Draw a tile ──────────────────────────────────────────────────────────────
-export function drawTile(state) {
-  if (state.wall.length === 0)
-    return { ...state, phase: 'exhausted', log: [...state.log, '🀫 牌墻摸完，流局！'] }
+// ─── Draw ─────────────────────────────────────────────────────────────────────
 
-  // Pop tiles, auto-collecting flowers
-  let wall     = [...state.wall]
-  const flowers = state.flowers.map(f => [...f])
-  let tile     = wall.pop()
-  const p      = state.currentPlayer
-
-  while (tile?.isFlower) {
-    flowers[p] = [...flowers[p], tile]
-    if (!wall.length)
-      return { ...state, wall, flowers, phase: 'exhausted', log: [...state.log, '🀫 牌墻摸完，流局！'] }
-    tile = wall.pop()
+export function drawTile(state, playerIdx) {
+  if (state.wall.length === 0) {
+    // 流局
+    return {
+      ...state,
+      phase: 'finished',
+      result: { type: 'draw', winner: null, fan: 0, points: 0, patterns: [] },
+      log: [...state.log, '牌已摸完，流局'],
+    };
   }
 
-  if (!tile) return { ...state, wall, flowers, phase: 'exhausted' }
+  let wall = [...state.wall];
+  let tile = wall.pop();
+  let flowers = state.flowers.map(f => [...f]);
 
-  const newHand  = sortHand([...state.hands[p], tile])
-  const newHands = state.hands.map((h, i) => i === p ? newHand : h)
-  const stats    = { ...state.stats, tilesDrawn: state.stats.tilesDrawn.map((v, i) => i===p ? v+1 : v), turns: state.stats.turns+1 }
-  const tenpai   = p === PLAYER ? getTenpaiTiles(newHand.filter(t => t.id !== tile.id), state.melds[p]) : []
+  // Skip flowers
+  while (tile && isFlower(tile)) {
+    flowers[playerIdx] = [...flowers[playerIdx], tile];
+    tile = wall.pop();
+  }
+
+  if (!tile) {
+    return { ...state, wall, phase: 'finished', result: { type: 'draw', winner: null }, log: [...state.log, '流局'] };
+  }
+
+  const hands = state.hands.map((h, i) => i === playerIdx ? sortHand([...h, tile]) : [...h]);
 
   // Check self-draw win
-  if (checkWin(newHand, state.melds[p])) {
-    const { fan, label } = calcFan(newHand, state.melds[p], true, state.seatWinds[p], state.roundWind)
-    if (fan >= 3) {
-      const pts    = fanToPoints(fan)
-      const scores = [...state.scores]
-      scores[p]   += pts * 3
-      for (let i = 0; i < 4; i++) if (i !== p) scores[i] -= pts
-      stats.winTypes     = [...stats.winTypes, { player:p, type:label[0]||'自摸', fan, score:pts*3 }]
-      stats.scoreHistory = [...stats.scoreHistory, [...scores]]
-      return {
-        ...state, wall, flowers, hands: newHands, drawnTile: tile,
-        phase: 'finished', winner: p, isTsumo: true,
-        winFan: fan, winLabels: label, scores, stats,
-        log: [...state.log, `🏆 ${p===0?'你':PLAYER_NAMES[p]} 自摸！${label.join('+')} (${fan}番)！`],
+  const canWin = checkWin(hands[playerIdx], state.melds[playerIdx]);
+
+  return {
+    ...state,
+    wall,
+    hands,
+    flowers,
+    drawnTile: tile,
+    currentPlayer: playerIdx,
+    phase: 'discard',
+    log: [...state.log, `${state.session.players[playerIdx].name} 摸牌`],
+    _canSelfDraw: canWin,
+  };
+}
+
+// ─── Discard ──────────────────────────────────────────────────────────────────
+
+export function doDiscard(state, playerIdx, tileId) {
+  const hand = state.hands[playerIdx];
+  const tileIdx = hand.findIndex(t => t.id === tileId);
+  if (tileIdx === -1) return state;
+
+  const tile = hand[tileIdx];
+  const newHand = hand.filter((_, i) => i !== tileIdx);
+  const hands = state.hands.map((h, i) => i === playerIdx ? sortHand(newHand) : [...h]);
+  const discards = state.discards.map((d, i) => i === playerIdx ? [...d, tile] : [...d]);
+
+  const newState = {
+    ...state,
+    hands,
+    discards,
+    drawnTile: null,
+    lastDiscard: tile,
+    lastDiscarder: playerIdx,
+    log: [...state.log, `${state.session.players[playerIdx].name} 打出 ${tile.key}`],
+    _canSelfDraw: false,
+  };
+
+  return gatherClaims(newState, tile, playerIdx);
+}
+
+// ─── Claims ───────────────────────────────────────────────────────────────────
+
+function gatherClaims(state, tile, discarder) {
+  const claims = [];
+
+  for (let p = 0; p < 4; p++) {
+    if (p === discarder) continue;
+    const hand = state.hands[p];
+
+    // Check win 糊
+    const testHand = [...hand, tile];
+    if (checkWin(testHand, state.melds[p])) {
+      const { fan, patterns } = calcFan(testHand, state.melds[p], tile, false,
+        state.seatWinds[p], state.session.round, state.flowers[p]);
+      if (fan >= state.session.minFan) {
+        claims.push({ player: p, type: 'win', tile, fan, patterns });
+      }
+    }
+
+    // Check pong 碰 (3rd tile of same)
+    const matching = hand.filter(t => t.key === tile.key);
+    if (matching.length >= 2) {
+      claims.push({ player: p, type: 'pong', tile, tiles: [matching[0], matching[1], tile] });
+    }
+
+    // Check chi 上 — only left player (discarder + 1) % 4
+    if (p === (discarder + 1) % 4) {
+      const chiOptions = getChiOptions(hand, tile);
+      for (const opt of chiOptions) {
+        claims.push({ player: p, type: 'chi', tile, tiles: opt });
       }
     }
   }
 
-  const msg = p===0 ? `你摸牌（剩 ${wall.length} 張）` : `${PLAYER_NAMES[p]} 摸牌（剩 ${wall.length} 張）`
-  return { ...state, wall, flowers, hands: newHands, drawnTile: tile, phase: 'discard', tenpaiTiles: tenpai, stats, log: [...state.log, msg] }
+  if (claims.length === 0) {
+    // Advance to next player's draw
+    const next = (discarder + 1) % 4;
+    return { ...state, currentPlayer: next, phase: 'draw', claimPending: null };
+  }
+
+  // Check if any human has a claim
+  const humanClaims = claims.filter(c => state.session.players[c.player].isHuman);
+
+  if (humanClaims.length > 0) {
+    // Human must decide
+    const claimingHuman = humanClaims[0].player;
+    return {
+      ...state,
+      phase: 'claiming',
+      claimPending: { claims, tile, discarder, claimingHuman },
+    };
+  }
+
+  // All AI — auto-resolve
+  return resolveClaimsAI(state, claims, tile, discarder);
 }
 
-// ─── Discard (shared by player and AI) ────────────────────────────────────────
-function doDiscard(state, p, tile) {
-  if (!tile) return state
-  const newHand     = sortHand(state.hands[p].filter(t => t.id !== tile.id))
-  const newDiscards = state.discards.map((d, i) => i===p ? [...d, tile] : d)
-  const newHands    = state.hands.map((h, i) => i===p ? newHand : h)
-  const stats       = { ...state.stats, discardCount: state.stats.discardCount.map((v, i) => i===p ? v+1 : v) }
+function getChiOptions(hand, tile) {
+  const sn = suitNum(tile);
+  if (!sn) return [];
+  const options = [];
+  const { suit, num } = sn;
+  const suitStr = SUITS[suit];
+  // Three possible chi sequences containing this tile
+  const seqs = [
+    [num-2, num-1, num],
+    [num-1, num, num+1],
+    [num, num+1, num+2],
+  ];
+  for (const seq of seqs) {
+    if (seq.some(n => n < 1 || n > 9)) continue;
+    const otherNums = seq.filter(n => n !== num);
+    const t1 = hand.find(t => t.key === `${suitStr}${otherNums[0]}`);
+    const t2 = hand.find(t => t.key === `${suitStr}${otherNums[1]}` && t !== t1);
+    if (t1 && t2) options.push([t1, t2, tile]);
+  }
+  return options;
+}
 
-  // Check Ron from all other players (AI only here; human uses playerClaimDiscard)
-  for (const cp of [1, 2, 3]) {
-    if (cp === p) continue
-    const strat     = state.aiStrategies[cp - 1] || 'nash'
-    const claimHand = sortHand([...newHands[cp], tile])
-    if (checkWin(claimHand, state.melds[cp]) && aiWantsRon(strat, tile, newHands[cp], state.melds[cp])) {
-      const { fan, label } = calcFan(claimHand, state.melds[cp], false, state.seatWinds[cp], state.roundWind)
-      if (fan >= 3) {
-        const pts    = fanToPoints(fan)
-        const scores = [...state.scores]; scores[cp] += pts; scores[p] -= pts
-        stats.winTypes     = [...stats.winTypes, { player:cp, type:label[0]||'炮', fan, score:pts }]
-        stats.scoreHistory = [...stats.scoreHistory, [...scores]]
-        return {
-          ...state, hands: newHands.map((h, i) => i===cp ? claimHand : h),
-          discards: newDiscards, lastDiscard: tile, lastDiscardPlayer: p, stats,
-          phase: 'finished', winner: cp, isTsumo: false, winFan: fan, winLabels: label, scores,
-          log: [...state.log, `${p===0?'你':PLAYER_NAMES[p]} 打牌。`, `🏆 ${PLAYER_NAMES[cp]} 食炮！${label.join('+')} (${fan}番)`],
-        }
-      }
+function suitNum(tile) {
+  for (let i = 0; i < SUITS.length; i++) {
+    if (tile.key.startsWith(SUITS[i])) return { suit: i, num: parseInt(tile.key.slice(-1)) };
+  }
+  return null;
+}
+
+export function resolveClaimsAI(state, claims, tile, discarder) {
+  // Priority: win > pong > chi
+  const winClaims = claims.filter(c => c.type === 'win');
+  if (winClaims.length > 0) {
+    // Winner with highest fan
+    const winner = winClaims.reduce((best, c) => (c.fan > best.fan ? c : best), winClaims[0]);
+    return executeWin(state, winner.player, tile, false, winner.fan, winner.patterns);
+  }
+
+  const pongClaims = claims.filter(c => c.type === 'pong');
+  for (const claim of pongClaims) {
+    const p = claim.player;
+    const strategy = state.session.players[p].strategy || 'nash';
+    if (aiWantsPong(tile, strategy)) {
+      return executePong(state, p, claim.tiles);
     }
   }
 
-  const next = (p + 1) % 4
-  stats.scoreHistory = [...stats.scoreHistory, [...state.scores]]
+  const chiClaims = claims.filter(c => c.type === 'chi');
+  for (const claim of chiClaims) {
+    const p = claim.player;
+    const strategy = state.session.players[p].strategy || 'nash';
+    if (aiWantsChi(tile, state.hands[p], state.melds[p], strategy)) {
+      return executeChi(state, p, claim.tiles, tile);
+    }
+  }
+
+  // No claims taken
+  const next = (discarder + 1) % 4;
+  return { ...state, currentPlayer: next, phase: 'draw', claimPending: null };
+}
+
+// ─── Meld Execution ───────────────────────────────────────────────────────────
+
+function executePong(state, p, meldTiles) {
+  const meld = { type: 'pong', tiles: sortHand(meldTiles) };
+  const meldKeys = meldTiles.map(t => t.id);
+  const newHand = state.hands[p].filter(t => !meldKeys.includes(t.id));
+  const hands = state.hands.map((h, i) => i === p ? sortHand(newHand) : h);
+  const melds = state.melds.map((m, i) => i === p ? [...m, meld] : m);
   return {
-    ...state, hands: newHands, discards: newDiscards,
-    lastDiscard: tile, lastDiscardPlayer: p,
-    drawnTile: null, phase: 'draw', currentPlayer: next, tenpaiTiles: [], stats,
-    log: [...state.log, `${p===0?'你':PLAYER_NAMES[p]} 打牌。`],
-  }
+    ...state,
+    hands,
+    melds,
+    currentPlayer: p,
+    phase: 'discard',
+    claimPending: null,
+    log: [...state.log, `${state.session.players[p].name} 碰！`],
+  };
 }
 
-// ─── Player actions ───────────────────────────────────────────────────────────
-export function playerDiscard(state, tileId) {
-  if (state.currentPlayer !== PLAYER || state.phase !== 'discard') return state
-  const tile = state.hands[PLAYER].find(t => t.id === tileId)
-  if (!tile) return state
-  return doDiscard(state, PLAYER, tile)
-}
-
-export function playerClaimDiscard(state) {
-  // Player claims the last discarded tile as Ron (食炮)
-  if (!state.lastDiscard) return state
-  if (state.phase !== 'draw') return state   // can only claim between turns
-  if (state.lastDiscardPlayer === PLAYER) return state  // can't claim own discard
-
-  const tile      = state.lastDiscard
-  const claimHand = sortHand([...state.hands[PLAYER], tile])
-  if (!checkWin(claimHand, state.melds[PLAYER])) {
-    return { ...state, log: [...state.log, '唔係和牌，無法食炮。'] }
-  }
-  const { fan, label } = calcFan(claimHand, state.melds[PLAYER], false, state.seatWinds[PLAYER], state.roundWind)
-  if (fan < 3) {
-    return { ...state, log: [...state.log, `唔夠番（${fan}番），三番起糊！`] }
-  }
-  const pts    = fanToPoints(fan)
-  const p      = state.lastDiscardPlayer
-  const scores = [...state.scores]; scores[PLAYER] += pts; scores[p] -= pts
-  const stats  = {
-    ...state.stats,
-    winTypes:     [...state.stats.winTypes, { player:0, type:label[0]||'炮', fan, score:pts }],
-    scoreHistory: [...state.stats.scoreHistory, [...scores]],
-  }
+function executeChi(state, p, meldTiles, drawnTile) {
+  const meld = { type: 'chi', tiles: sortHand(meldTiles) };
+  const meldIds = meldTiles.filter(t => t.id !== drawnTile.id).map(t => t.id);
+  const newHand = state.hands[p].filter(t => !meldIds.includes(t.id));
+  const hands = state.hands.map((h, i) => i === p ? sortHand(newHand) : h);
+  const melds = state.melds.map((m, i) => i === p ? [...m, meld] : m);
   return {
-    ...state, hands: state.hands.map((h, i) => i===PLAYER ? claimHand : h),
-    phase: 'finished', winner: PLAYER, isTsumo: false, winFan: fan, winLabels: label, scores, stats,
-    log: [...state.log, `🏆 你食炮！${label.join('+')} (${fan}番)`],
-  }
+    ...state,
+    hands,
+    melds,
+    currentPlayer: p,
+    phase: 'discard',
+    claimPending: null,
+    log: [...state.log, `${state.session.players[p].name} 上！`],
+  };
 }
 
-// ─── AI turn (draw + discard) ─────────────────────────────────────────────────
+function executeWin(state, winner, tile, isSelfDraw, fan, patterns) {
+  const winnerHand = isSelfDraw ? state.hands[winner] : [...state.hands[winner], tile];
+  const points = fanToPoints(fan);
+
+  // Score changes
+  const scores = [...state.session.scores];
+  const loser = isSelfDraw ? null : state.lastDiscarder;
+
+  if (isSelfDraw) {
+    // Everyone pays
+    for (let p = 0; p < 4; p++) {
+      if (p !== winner) scores[p] -= points;
+    }
+    scores[winner] += points * 3;
+  } else {
+    scores[loser] -= points * 3;
+    scores[winner] += points * 3;
+  }
+
+  const newSession = { ...state.session, scores };
+  const winType = isSelfDraw ? '自摸' : (winner === state.session.dealer ? '莊家糊牌' : '糊牌');
+
+  return {
+    ...state,
+    session: newSession,
+    phase: 'finished',
+    claimPending: null,
+    result: {
+      type: 'win',
+      winner,
+      fan,
+      points,
+      patterns,
+      isSelfDraw,
+      loser,
+      winType,
+    },
+    log: [...state.log, `${state.session.players[winner].name} 糊牌！${fan}番 ${points}點`],
+  };
+}
+
+// ─── Human Claim Handlers ─────────────────────────────────────────────────────
+
+export function playerClaimWin(state) {
+  const { claims, tile, discarder, claimingHuman } = state.claimPending;
+  const winClaim = claims.find(c => c.player === claimingHuman && c.type === 'win');
+  if (!winClaim) return state;
+  return executeWin(state, claimingHuman, tile, false, winClaim.fan, winClaim.patterns);
+}
+
+export function playerPong(state) {
+  const { claims, tile, claimingHuman } = state.claimPending;
+  const pongClaim = claims.find(c => c.player === claimingHuman && c.type === 'pong');
+  if (!pongClaim) return state;
+  return executePong(state, claimingHuman, pongClaim.tiles);
+}
+
+export function playerChi(state, chiTiles) {
+  const { tile, claimingHuman } = state.claimPending;
+  return executeChi(state, claimingHuman, chiTiles, tile);
+}
+
+export function playerPass(state) {
+  const { claims, tile, discarder, claimingHuman } = state.claimPending;
+  // Remove human claims and re-resolve with AI only
+  const aiClaims = claims.filter(c => c.player !== claimingHuman);
+  if (aiClaims.length === 0) {
+    const next = (discarder + 1) % 4;
+    return { ...state, currentPlayer: next, phase: 'draw', claimPending: null };
+  }
+  return resolveClaimsAI({ ...state, claimPending: null }, aiClaims, tile, discarder);
+}
+
+// ─── AI Turn ──────────────────────────────────────────────────────────────────
+
 export function aiTurn(state) {
-  if (state.currentPlayer === PLAYER) return state
-  if (state.phase === 'finished' || state.phase === 'exhausted') return state
+  const p = state.currentPlayer;
+  const player = state.session.players[p];
+  if (player.isHuman) return state;
 
-  let s = state
-  // Draw if needed
-  if (s.phase === 'draw') {
-    s = drawTile(s)
-    if (s.phase === 'finished' || s.phase === 'exhausted') return s
+  if (state.phase === 'draw') {
+    return drawTile(state, p);
   }
-  if (s.phase !== 'discard') return s
 
-  const p     = s.currentPlayer
-  const strat = s.aiStrategies[p - 1] || 'nash'
-  const disc  = aiDiscard(strat, s.hands[p], s.discards, s.melds[p])
-  if (!disc) return { ...s, phase: 'exhausted' }
-  return doDiscard(s, p, disc)
+  if (state.phase === 'discard') {
+    // Check self-draw win first
+    if (state._canSelfDraw) {
+      const hand = state.hands[p];
+      const testHand = [...hand];
+      const { fan, patterns } = calcFan(testHand, state.melds[p], state.drawnTile, true,
+        state.seatWinds[p], state.session.round, state.flowers[p]);
+      if (fan >= state.session.minFan) {
+        return executeWin(state, p, state.drawnTile, true, fan, patterns);
+      }
+    }
+
+    const strategy = player.strategy || 'nash';
+    const discard = aiDiscard(state.hands[p], state.melds[p], strategy);
+    return doDiscard(state, p, discard.id);
+  }
+
+  return state;
 }
 
-// ─── Fan to points ────────────────────────────────────────────────────────────
-export function fanToPoints(fan) {
-  if (fan <= 3)  return 8
-  if (fan === 4) return 16
-  if (fan === 5) return 24
-  if (fan === 6) return 32
-  if (fan === 7) return 48
-  if (fan === 8) return 64
-  if (fan <= 9)  return 96
-  if (fan <= 12) return 128
-  return 256
+// ─── Session Advance ──────────────────────────────────────────────────────────
+
+export function advanceSession(state) {
+  const { result, session } = state;
+  let { dealer, round, handsPlayed, scores } = session;
+
+  if (result?.type === 'win') {
+    const winner = result.winner;
+    if (winner === dealer) {
+      // 冧莊: dealer stays
+    } else {
+      // 過莊: rotate dealer
+      dealer = (dealer + 1) % 4;
+      if (dealer === 0) round = (round + 1) % 4;
+    }
+  } else {
+    // 流局: dealer stays
+  }
+
+  handsPlayed++;
+
+  const newSession = { ...session, dealer, round, handsPlayed, scores };
+  return newSession;
 }
 
-// ─── Session advance (冧莊/過莊) ──────────────────────────────────────────────
-export function advanceSession(session, handState) {
-  const winner   = handState.winner
-  const isDraw   = winner === -1 || handState.phase === 'exhausted'
-  const isDealer = !isDraw && winner === session.dealerSeat
+// ─── Simulation ───────────────────────────────────────────────────────────────
 
-  const result = {
-    round: session.round, dealerSeat: session.dealerSeat,
-    winner, winType: handState.winLabels?.[0] || '流局',
-    fan: handState.winFan || 0, scores: handState.scores,
-  }
+export function runOneGame(players, minFan = 3) {
+  let session = createSession(players, minFan);
+  let results = [];
 
-  let ns = {
-    ...session,
-    sessionScores: [...handState.scores],
-    totalHands:    session.totalHands + 1,
-    handsInRound:  session.handsInRound + 1,
-    handResults:   [...(session.handResults || []), result],
-  }
+  for (let hand = 0; hand < 16; hand++) { // max 16 hands (4 rounds * 4 winds roughly)
+    let state = startHand(session);
+    let safety = 0;
 
-  if (isDraw || isDealer) {
-    // 流局 or 冧莊 — dealer stays
-    ns = { ...ns, dealerWins: isDealer ? ns.dealerWins + 1 : ns.dealerWins }
-    return { ...ns, phase: 'hand' }
-  }
+    while (state.phase !== 'finished' && safety < 400) {
+      safety++;
 
-  // 過莊 — rotate dealer
-  const nextDealer = (session.dealerSeat + 1) % 4
-  const nextRound  = nextDealer === 0 ? session.round + 1 : session.round
-  ns = { ...ns, dealerSeat: nextDealer, dealerWins: 0, round: nextRound }
-  if (nextDealer === 0) ns = { ...ns, handsInRound: 0 }
-  if (nextRound >= 4) return { ...ns, phase: 'finished' }
-  return { ...ns, phase: 'hand' }
-}
-
-// ─── Simulation (synchronous, no UI) ─────────────────────────────────────────
-export function runSimulation(strategies) {
-  const strats   = strategies || ['nash','dragon','tortoise','tripletHunter']
-  const aiStrats = [strats[1]||'nash', strats[2]||'nash', strats[3]||'nash']
-  let session    = { ...initGameSession(aiStrats), aiStrategies: aiStrats }
-  const results  = []
-
-  let handsLimit = 80  // max hands per full simulation
-  while (session.phase !== 'finished' && handsLimit-- > 0) {
-    let hand   = startHand(session)
-    let safety = 300   // max turns per hand
-
-    while (safety-- > 0) {
-      if (hand.phase === 'finished' || hand.phase === 'exhausted') break
-
-      const p     = hand.currentPlayer
-      const pStrat = strats[p] || 'nash'
-
-      if (hand.phase === 'draw') {
-        hand = drawTile(hand)
-        continue
+      if (state.phase === 'draw') {
+        state = drawTile(state, state.currentPlayer);
+        continue;
       }
 
-      if (hand.phase === 'discard') {
-        const disc = aiDiscard(pStrat, hand.hands[p], hand.discards, hand.melds[p])
-        if (!disc) { hand = { ...hand, phase: 'exhausted', winner: -1 }; break }
-
-        const newHand     = sortHand(hand.hands[p].filter(t => t.id !== disc.id))
-        const newDiscards = hand.discards.map((d, i) => i===p ? [...d, disc] : d)
-        const newHands    = hand.hands.map((h, i) => i===p ? newHand : h)
-        const stats       = { ...hand.stats, discardCount: hand.stats.discardCount.map((v,i)=>i===p?v+1:v) }
-
-        // Check Ron
-        let ronWinner = -1
-        for (const cp of [0,1,2,3]) {
-          if (cp === p) continue
-          const cpStrat   = strats[cp] || 'nash'
-          const claimHand = sortHand([...newHands[cp], disc])
-          if (checkWin(claimHand, hand.melds[cp]) && aiWantsRon(cpStrat, disc, newHands[cp], hand.melds[cp])) {
-            const { fan, label } = calcFan(claimHand, hand.melds[cp], false, hand.seatWinds[cp], hand.roundWind)
-            if (fan >= 3) {
-              const pts    = fanToPoints(fan)
-              const scores = [...hand.scores]; scores[cp] += pts; scores[p] -= pts
-              stats.winTypes     = [...stats.winTypes, { player:cp, type:label[0], fan, score:pts }]
-              stats.scoreHistory = [...stats.scoreHistory, [...scores]]
-              hand = {
-                ...hand, hands: newHands.map((h, i) => i===cp ? claimHand : h),
-                discards: newDiscards, lastDiscard: disc, lastDiscardPlayer: p, stats,
-                phase: 'finished', winner: cp, winFan: fan, winLabels: label, scores,
-              }
-              ronWinner = cp
-              break
-            }
+      if (state.phase === 'discard') {
+        const p = state.currentPlayer;
+        // Check self-draw
+        if (state._canSelfDraw) {
+          const hand14 = state.hands[p];
+          const { fan, patterns } = calcFan(hand14, state.melds[p], state.drawnTile, true,
+            state.seatWinds[p], session.round, state.flowers[p]);
+          if (fan >= minFan) {
+            state = { ...state, phase: 'finished', result: { type:'win', winner:p, fan, patterns, isSelfDraw:true, loser:null } };
+            // Update scores
+            const pts = fanToPoints(fan);
+            const scores = [...session.scores];
+            for (let i = 0; i < 4; i++) { if (i !== p) scores[i] -= pts; }
+            scores[p] += pts * 3;
+            session = { ...session, scores };
+            state = { ...state, session };
+            break;
           }
         }
-        if (ronWinner !== -1) break
+        const strategy = players[p].strategy || 'nash';
+        const discard = aiDiscard(state.hands[p], state.melds[p], strategy);
+        state = doDiscard(state, p, discard.id);
+        continue;
+      }
 
-        const next = (p + 1) % 4
-        stats.scoreHistory = [...stats.scoreHistory, [...hand.scores]]
-        hand = { ...hand, hands: newHands, discards: newDiscards, lastDiscard: disc, lastDiscardPlayer: p,
-          drawnTile: null, phase: 'draw', currentPlayer: next, tenpaiTiles: [], stats }
+      if (state.phase === 'claiming') {
+        if (!state.claimPending) {
+          state = { ...state, phase: 'draw', currentPlayer: (state.lastDiscarder + 1) % 4 };
+          continue;
+        }
+        const { claims, tile, discarder } = state.claimPending;
+        state = resolveClaimsAI({ ...state, claimPending: null }, claims, tile, discarder);
+        // After resolving, update session scores if win happened
+        if (state.phase === 'finished' && state.result?.type === 'win') {
+          session = { ...session, scores: [...state.session.scores] };
+        }
+        continue;
       }
     }
 
-    if (hand.phase !== 'finished') hand = { ...hand, phase: 'exhausted', winner: -1 }
-    results.push({ ...hand })
-    session = advanceSession(session, hand)
+    if (state.phase !== 'finished') {
+      state = { ...state, phase: 'finished', result: { type: 'draw', winner: null } };
+    }
+
+    results.push({
+      hand,
+      dealer: session.dealer,
+      result: state.result,
+      scores: [...session.scores],
+    });
+
+    // Check if 4 rounds done
+    const newSession = advanceSession(state);
+    if (newSession.round > session.round && newSession.round >= 4) break;
+    session = newSession;
+    if (session.handsPlayed >= 16) break;
   }
 
-  return { session, results, strategies: strats }
+  return { finalScores: session.scores, hands: results };
 }
