@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import './index.css';
 import {
   SUITS, HONOURS, WINDS, FLOWERS, TILE_EMOJI, TILE_DISPLAY,
-  sortHand, analyzeHand, calcFan, fanToPoints
+  sortHand, analyzeHand, calcFan, fanToPoints, isFlower
 } from './game/tiles.js';
 import {
   createSession, startHand, drawTile, doDiscard,
@@ -11,53 +11,72 @@ import {
 } from './game/gameEngine.js';
 import { STRATEGIES } from './ai/strategies.js';
 
-const SUIT_LABELS = { man:'萬', pin:'餅', sou:'索' };
-const SUIT_CLASS   = { man:'suit-man', sou:'suit-sou', pin:'' };
-const WIND_LABELS  = ['東','南','西','北'];
+// ─── Constants ────────────────────────────────────────────────────────────────
+const WIND_LABELS = ['東','南','西','北'];
 const FLOWER_NAMES = { plum:'梅',orchid:'蘭',chrysanthemum:'菊',bamboo:'竹',spring:'春',summer:'夏',autumn:'秋',winter:'冬' };
+const SUIT_LABEL = { man:'萬', pin:'筒', sou:'索' };
+const SUIT_FULL  = { man:'萬子', pin:'筒子', sou:'索子' };
 
-function tileDisplay(key) {
+// ─── Tile Component ───────────────────────────────────────────────────────────
+function tileContent(key) {
+  // Suits
   for (const s of SUITS) {
-    if (key.startsWith(s)) return { num: key.slice(s.length), suit: SUIT_LABELS[s], cls: SUIT_CLASS[s] };
+    if (key.startsWith(s)) {
+      const num = parseInt(key.slice(s.length));
+      return { num: `${num}`, suit: SUIT_LABEL[s], cls: s };
+    }
   }
-  return { num: TILE_DISPLAY[key] || key, suit: '', cls: 'suit-honour' };
+  // Flowers
+  if (FLOWERS.includes(key)) {
+    const idx = FLOWERS.indexOf(key);
+    const isRed = idx >= 4;
+    return { num: FLOWER_NAMES[key], suit: '', cls: isRed ? 'flower-red' : 'flower-green' };
+  }
+  // Honours
+  const label = TILE_DISPLAY[key] || key;
+  return { num: label, suit: '', cls: 'hon' };
 }
 
 function Tile({ tile, selected, drawn, small, inDiscard, onClick }) {
-  const { num, suit, cls } = tileDisplay(tile.key);
+  const { num, suit, cls } = tileContent(tile.key);
   const cn = ['mj-tile', small&&'small', selected&&'sel', drawn&&'drawn', inDiscard&&'in-discard'].filter(Boolean).join(' ');
   return (
-    <div className={cn} onClick={onClick} title={TILE_DISPLAY[tile.key]}>
-      <span className={`tile-num ${cls}`}>{num}</span>
-      {suit && <span className="tile-suit">{suit}</span>}
+    <div className={cn} onClick={onClick} title={TILE_DISPLAY[tile.key] || tile.key}>
+      <div className="tile-face">
+        <span className={`tile-num ${cls}`}>{num}</span>
+        {suit && <span className="tile-suit">{suit}</span>}
+      </div>
     </div>
   );
 }
 
-function TileBack({ small }) { return <div className={`mj-tile back${small?' small':''}`} />; }
+function TileBack({ small }) {
+  return <div className={`mj-tile back${small?' small':''}`}><div className="tile-face"/></div>;
+}
 
+// ─── Tile Tracker ─────────────────────────────────────────────────────────────
 function TileTracker({ hand, discards, melds }) {
   const seen = {};
-  const count = t => { seen[t.key] = (seen[t.key]||0)+1; };
+  const count = t => { seen[t.key]=(seen[t.key]||0)+1; };
   hand.forEach(count);
   discards.flat().forEach(count);
   melds.flat().flatMap(m=>m.tiles).forEach(count);
-  const rem = key => 4 - (seen[key]||0);
+  const rem = key => 4-(seen[key]||0);
   const rows = [
-    ...SUITS.map(s => ({ label: SUIT_LABELS[s], tiles: Array.from({length:9},(_,i)=>`${s}${i+1}`) })),
-    { label: '字', tiles: HONOURS },
+    ...SUITS.map(s=>({ label:SUIT_LABEL[s], tiles:Array.from({length:9},(_,i)=>`${s}${i+1}`) })),
+    { label:'字', tiles:HONOURS },
   ];
   return (
     <div className="tracker-panel">
-      <div className="tracker-title">牌墻追蹤</div>
-      {rows.map(row => (
+      <div className="tracker-title">剩牌追蹤</div>
+      {rows.map(row=>(
         <div key={row.label} className="tracker-suit-row">
           <span className="tracker-slbl">{row.label}</span>
-          {row.tiles.map(key => {
-            const r = rem(key);
+          {row.tiles.map(key=>{
+            const r=rem(key);
             return (
-              <div key={key} className={`tracker-tile av-${r}`} title={`${TILE_DISPLAY[key]} 剩${r}`}>
-                <span className="tsym">{TILE_EMOJI[key]||key}</span>
+              <div key={key} className={`tracker-tile av-${r}`} title={`${TILE_DISPLAY[key]} 餘${r}張`}>
+                <span className="tsym">{TILE_EMOJI[key]||TILE_DISPLAY[key]}</span>
                 <span className="tcnt">{r}</span>
               </div>
             );
@@ -68,25 +87,37 @@ function TileTracker({ hand, discards, melds }) {
   );
 }
 
+// ─── Flower Row ───────────────────────────────────────────────────────────────
 function FlowerRow({ flowers }) {
   if (!flowers?.length) return null;
-  const isRed = f => FLOWERS.indexOf(f.key) >= 4;
   return (
     <div className="flower-row">
-      {flowers.map(f => <span key={f.id} className={`flower-badge ${isRed(f)?'red':'green'}`}>{FLOWER_NAMES[f.key]}</span>)}
+      {flowers.map(f=>{
+        const isRed=FLOWERS.indexOf(f.key)>=4;
+        return <span key={f.id} className={`flower-badge ${isRed?'red':'green'}`}>{FLOWER_NAMES[f.key]}</span>;
+      })}
     </div>
   );
 }
 
-function OpponentPanel({ player, hand, melds, discards, flowers, seatWind, isDealer, isTurn, showTiles }) {
+// ─── Opponent Panel ───────────────────────────────────────────────────────────
+function OpponentPanel({ player, hand, melds, discards, flowers, seatWind, isDealer, isTurn, debug }) {
   return (
     <div className="aip">
       <div className="opp-name">
-        <span className="sc-wind">{WIND_LABELS[seatWind]}</span>
-        {isDealer && <span className="sc-dealer">莊</span>}
-        {isTurn && <span className="turn-badge">●</span>}
+        <span className="badge badge-wind">{WIND_LABELS[seatWind]}</span>
+        {isDealer && <span className="badge badge-dealer">莊</span>}
+        {isTurn && <span className="badge badge-turn">●</span>}
         <span>{player.name}</span>
-        {flowers?.length>0 && <span className="sc-flowers">{flowers.map(f=>FLOWER_NAMES[f.key]).join('')}</span>}
+        <span className="opp-remain">{hand.length}張</span>
+        {flowers?.length>0 && (
+          <div className="flower-row" style={{marginLeft:0}}>
+            {flowers.map(f=>{
+              const isRed=FLOWERS.indexOf(f.key)>=4;
+              return <span key={f.id} className={`flower-badge ${isRed?'red':'green'}`} style={{fontSize:'0.6rem'}}>{FLOWER_NAMES[f.key]}</span>;
+            })}
+          </div>
+        )}
       </div>
       {melds.length>0 && (
         <div className="melds-row">
@@ -99,7 +130,10 @@ function OpponentPanel({ player, hand, melds, discards, flowers, seatWind, isDea
         </div>
       )}
       <div className="opp-tiles">
-        {showTiles ? hand.map(t=><Tile key={t.id} tile={t} small/>) : hand.map((_,i)=><TileBack key={i} small/>)}
+        {debug
+          ? hand.map(t=><Tile key={t.id} tile={t} small/>)
+          : hand.map((_,i)=><TileBack key={i} small/>)
+        }
       </div>
       <div className="opp-discards">
         {discards.map(t=><Tile key={t.id} tile={t} small inDiscard/>)}
@@ -108,26 +142,30 @@ function OpponentPanel({ player, hand, melds, discards, flowers, seatWind, isDea
   );
 }
 
+// ─── Claim Prompt ─────────────────────────────────────────────────────────────
 function ClaimPrompt({ claimPending, players, onWin, onPong, onChi, onPass }) {
   if (!claimPending) return null;
   const { claims, tile, claimingHuman } = claimPending;
   const mine = claims.filter(c=>c.player===claimingHuman);
-  const canWin = mine.some(c=>c.type==='win');
+  const winClaim = mine.find(c=>c.type==='win');
   const canPong = mine.some(c=>c.type==='pong');
   const chiOpts = mine.filter(c=>c.type==='chi');
   return (
     <div className="claim-prompt">
       <h3>選擇操作</h3>
       <div style={{display:'flex',alignItems:'center',gap:6}}>
-        <span style={{fontSize:'0.8rem',color:'var(--text-dim)'}}>打出：</span>
+        <span style={{fontSize:'0.75rem',color:'var(--dim)'}}>打出：</span>
         <Tile tile={tile}/>
       </div>
       <div className="claim-btns">
-        {canWin && <button className="claim-btn win" onClick={onWin}>糊！{mine.find(c=>c.type==='win')?.fan}番</button>}
+        {winClaim && <button className="claim-btn win" onClick={onWin}>胡！{winClaim.fan}番</button>}
         {canPong && <button className="claim-btn pong" onClick={onPong}>碰</button>}
         {chiOpts.map((c,i)=>(
           <button key={i} className="claim-btn chi" onClick={()=>onChi(c.tiles)}>
-            上 {c.tiles.map(t=>TILE_DISPLAY[t.key]).join('')}
+            上 {c.tiles.sort((a,b)=>{
+              const n=t=>parseInt(t.key.replace(/[^0-9]/g,''))||0;
+              return n(a)-n(b);
+            }).map(t=>TILE_DISPLAY[t.key]).join('')}
           </button>
         ))}
         <button className="claim-btn pass" onClick={onPass}>過</button>
@@ -136,31 +174,32 @@ function ClaimPrompt({ claimPending, players, onWin, onPong, onChi, onPass }) {
   );
 }
 
+// ─── Win Overlay ──────────────────────────────────────────────────────────────
 function WinOverlay({ result, players, dealer, onNext }) {
   if (!result) return null;
   if (result.type==='draw') return (
     <div className="overlay">
       <div className="win-card">
         <div className="win-title">流局</div>
-        <div className="win-subtitle">牌已摸完</div>
+        <div className="win-subtitle">剩牌摸完</div>
         <div className="win-dealer-badge lim">冧莊（莊家連莊）</div>
         <br/>
         <button className="btn btn-gold" onClick={onNext}>下一局</button>
       </div>
     </div>
   );
-  const winner = players[result.winner];
-  const isDealerWin = result.winner===dealer;
+  const winner=players[result.winner];
+  const isDealerWin=result.winner===dealer;
   return (
     <div className="overlay">
       <div className="win-card">
-        <div className="win-title">{winner.name} 糊牌！</div>
-        <div className="win-subtitle">{result.isSelfDraw?'自摸':`食 ${players[result.loser]?.name} 打出`}</div>
+        <div className="win-title">{winner.name} 胡牌！</div>
+        <div className="win-subtitle">{result.isSelfDraw?'自摸':`出沖 — ${players[result.loser]?.name||''} 包`}</div>
         <div className="win-patterns">
           {result.patterns?.map((p,i)=><span key={i} className="pattern-tag">{p}</span>)}
         </div>
         <div className="win-fan">{result.fan} 番</div>
-        <div className="win-pts">{result.points} 點</div>
+        <div className="win-pts">{result.points} 點 / 人</div>
         <div className={`win-dealer-badge ${isDealerWin?'lim':'pass'}`}>
           {isDealerWin?'冧莊（莊家連莊）':'過莊（換莊）'}
         </div>
@@ -171,6 +210,7 @@ function WinOverlay({ result, players, dealer, onNext }) {
   );
 }
 
+// ─── Setup Screen ─────────────────────────────────────────────────────────────
 const DEFAULT_PLAYERS = [
   { name:'你',   isHuman:true,  strategy:'nash' },
   { name:'阿明', isHuman:false, strategy:'aggressive' },
@@ -182,7 +222,7 @@ function SetupScreen({ onStart, onSimulate }) {
   const [players, setPlayers] = useState(DEFAULT_PLAYERS.map(p=>({...p})));
   const [minFan, setMinFan] = useState(3);
   const [simGames, setSimGames] = useState(30);
-  const upd = (i,f,v) => setPlayers(ps=>ps.map((p,idx)=>idx===i?{...p,[f]:v}:p));
+  const upd=(i,f,v)=>setPlayers(ps=>ps.map((p,idx)=>idx===i?{...p,[f]:v}:p));
   return (
     <div className="setup-screen">
       <div className="setup-title">🀄 香港麻雀</div>
@@ -190,13 +230,13 @@ function SetupScreen({ onStart, onSimulate }) {
       <div className="setup-grid">
         {players.map((p,i)=>(
           <div key={i} className="setup-card">
-            <h3>玩家 {i+1} — {WIND_LABELS[i]}</h3>
-            <input type="text" value={p.name} onChange={e=>upd(i,'name',e.target.value)} placeholder="名字"/>
+            <h3>玩家 {i+1}（{WIND_LABELS[i]}位）</h3>
+            <input type="text" value={p.name} onChange={e=>upd(i,'name',e.target.value)} placeholder="名稱"/>
             <div className="toggle-row">
               <button className={`toggle-btn${p.isHuman?' active':''}`} onClick={()=>upd(i,'isHuman',true)}>真人</button>
               <button className={`toggle-btn${!p.isHuman?' active':''}`} onClick={()=>upd(i,'isHuman',false)}>電腦</button>
             </div>
-            {!p.isHuman && <>
+            {!p.isHuman&&<>
               <div className="toggle-row" style={{marginTop:6}}>
                 {Object.entries(STRATEGIES).map(([k,v])=>(
                   <button key={k} className={`toggle-btn${p.strategy===k?' active':''}`} onClick={()=>upd(i,'strategy',k)}>{v.label}</button>
@@ -210,7 +250,7 @@ function SetupScreen({ onStart, onSimulate }) {
       <div className="setup-options">
         <div className="option-row">
           <input type="checkbox" id="mf" checked={minFan>=3} onChange={e=>setMinFan(e.target.checked?3:1)}/>
-          <label htmlFor="mf">三番起糊（標準香港規則）</label>
+          <label htmlFor="mf">三番起胡（標準港式規則）</label>
         </div>
         <div className="option-row">
           <label>模擬局數：</label>
@@ -219,13 +259,14 @@ function SetupScreen({ onStart, onSimulate }) {
         </div>
       </div>
       <div style={{display:'flex',gap:12}}>
-        <button className="btn btn-gold" style={{fontSize:'1rem',padding:'10px 28px'}} onClick={()=>onStart(players,minFan)}>開始遊戲</button>
-        <button className="btn btn-green" style={{fontSize:'1rem',padding:'10px 28px'}} onClick={()=>onSimulate(players.map(p=>({...p,isHuman:false})),simGames,minFan)}>開始模擬</button>
+        <button className="btn btn-gold" style={{fontSize:'0.95rem',padding:'9px 26px'}} onClick={()=>onStart(players,minFan)}>開始遊戲</button>
+        <button className="btn btn-green" style={{fontSize:'0.95rem',padding:'9px 26px'}} onClick={()=>onSimulate(players.map(p=>({...p,isHuman:false})),simGames,minFan)}>開始模擬</button>
       </div>
     </div>
   );
 }
 
+// ─── Simulation ───────────────────────────────────────────────────────────────
 function SimLive({ players, totalGames, minFan, onBack }) {
   const [results, setResults] = useState([]);
   const [running, setRunning] = useState(true);
@@ -250,7 +291,7 @@ function SimLive({ players, totalGames, minFan, onBack }) {
     <div className="sim-live">
       <div className="sim-header">
         <span className="sim-title">模擬結果</span>
-        <span className="sim-progress">{results.length} / {totalGames} 局{running?' …':' 完成'}</span>
+        <span className="sim-progress">{results.length} / {totalGames} 局{running?' 進行中…':' 完成'}</span>
         <button className="btn btn-gray" style={{marginLeft:'auto'}} onClick={onBack}>返回設定</button>
       </div>
       <div className="sim-stats-row">
@@ -258,21 +299,21 @@ function SimLive({ players, totalGames, minFan, onBack }) {
           <div key={t.i} className="sim-stat-card">
             <div className="sim-stat-name">{players[t.i].name}</div>
             <div className="sim-stat-score">{t.score>0?'+':''}{t.score}</div>
-            <div className="sim-stat-wins">{t.wins} 局糊牌</div>
+            <div className="sim-stat-wins">胡牌 {t.wins} 局</div>
             <div className="sim-ranking">第 {rank+1} 名</div>
           </div>
         ))}
       </div>
       {results.length>0&&(
         <table className="sim-table">
-          <thead><tr><th>局</th>{players.map((p,i)=><th key={i}>{p.name}</th>)}<th>糊法</th></tr></thead>
+          <thead><tr><th>局</th>{players.map((p,i)=><th key={i}>{p.name}</th>)}<th>結果</th></tr></thead>
           <tbody>
             {results.slice(-20).reverse().map((r,idx)=>(
               <tr key={idx}>
                 <td>{results.length-idx}</td>
-                {r.finalScores.map((s,i)=><td key={i} style={{color:s>0?'#27ae60':s<0?'#e74c3c':'inherit'}}>{s>0?'+':''}{s}</td>)}
-                <td style={{color:'var(--text-dim)',fontSize:'0.72rem'}}>
-                  {r.hands.filter(h=>h.result?.type==='win').map(h=>`${players[h.result.winner].name}${h.result.isSelfDraw?'摸':'食'}(${h.result.fan}番)`).join(', ')||'流局'}
+                {r.finalScores.map((s,i)=><td key={i} style={{color:s>0?'#2ecc71':s<0?'#e74c3c':'inherit'}}>{s>0?'+':''}{s}</td>)}
+                <td style={{color:'var(--dim)',fontSize:'0.68rem'}}>
+                  {r.hands.filter(h=>h.result?.type==='win').map(h=>`${players[h.result.winner].name}${h.result.isSelfDraw?'摸':'食'}${h.result.fan}番`).join(' · ')||'流局'}
                 </td>
               </tr>
             ))}
@@ -283,12 +324,13 @@ function SimLive({ players, totalGames, minFan, onBack }) {
   );
 }
 
+// ─── Main Game ────────────────────────────────────────────────────────────────
 export default function App() {
   const [screen, setScreen] = useState('setup');
   const [hand, setHand] = useState(null);
   const [selectedTile, setSelectedTile] = useState(null);
   const [simConfig, setSimConfig] = useState(null);
-  const [showAllTiles, setShowAllTiles] = useState(true);
+  const [debug, setDebug] = useState(false);
 
   const humanIdx = hand ? hand.session.players.findIndex(p=>p.isHuman) : 0;
 
@@ -302,15 +344,14 @@ export default function App() {
         if(!prev||prev.phase==='finished'||prev.phase==='claiming'||prev.currentPlayer!==p) return prev;
         return aiTurn(prev);
       });
-    },400);
+    },420);
     return()=>clearTimeout(t);
   },[hand?.currentPlayer,hand?.phase,screen]);
 
   // Human draw
   useEffect(()=>{
     if(!hand||screen!=='game'||hand.phase!=='draw') return;
-    const p=hand.currentPlayer;
-    if(!hand.session.players[p].isHuman) return;
+    if(!hand.session.players[hand.currentPlayer].isHuman) return;
     setHand(prev=>{
       if(!prev||prev.phase!=='draw'||!prev.session.players[prev.currentPlayer].isHuman) return prev;
       return drawTile(prev,prev.currentPlayer);
@@ -318,24 +359,38 @@ export default function App() {
   },[hand?.currentPlayer,hand?.phase]);
 
   function handleStart(players,minFan){
-    const s=createSession(players,minFan);
-    setHand(startHand(s));
+    setHand(startHand(createSession(players,minFan)));
     setSelectedTile(null);
     setScreen('game');
   }
   function handleSimulate(players,games,minFan){ setSimConfig({players,games,minFan}); setScreen('sim'); }
 
   function handleTileClick(tile){
-    if(hand.phase!=='discard'||hand.currentPlayer!==humanIdx) return;
-    if(selectedTile?.id===tile.id){ setHand(prev=>doDiscard(prev,humanIdx,tile.id)); setSelectedTile(null); }
-    else setSelectedTile(tile);
+    if(!hand||hand.phase!=='discard'||hand.currentPlayer!==humanIdx||hand.result) return;
+    if(selectedTile?.id===tile.id){
+      setHand(prev=>doDiscard(prev,humanIdx,tile.id));
+      setSelectedTile(null);
+    } else { setSelectedTile(tile); }
   }
-  function handleDiscard(){ if(!selectedTile) return; setHand(prev=>doDiscard(prev,humanIdx,selectedTile.id)); setSelectedTile(null); }
-  function handleClaimWin(){ setHand(prev=>playerClaimWin(prev)); }
-  function handlePong(){ setHand(prev=>playerPong(prev)); }
-  function handleChi(tiles){ setHand(prev=>playerChi(prev,tiles)); }
-  function handlePass(){ setHand(prev=>playerPass(prev)); }
-
+  function handleDiscard(){
+    if(!selectedTile) return;
+    setHand(prev=>doDiscard(prev,humanIdx,selectedTile.id));
+    setSelectedTile(null);
+  }
+  function handleSelfDraw(){
+    setHand(prev=>{
+      if(!prev||!prev._canSelfDraw) return prev;
+      const p=humanIdx;
+      const {fan,patterns}=calcFan(prev.hands[p],prev.melds[p],prev.drawnTile,true,prev.seatWinds[p],prev.session.round,prev.flowers[p]);
+      if(fan<prev.session.minFan) return prev;
+      const pts=fanToPoints(fan);
+      const scores=[...prev.session.scores];
+      for(let i=0;i<4;i++){if(i!==p)scores[i]-=pts;}
+      scores[p]+=pts*3;
+      return {...prev,session:{...prev.session,scores},phase:'finished',
+        result:{type:'win',winner:p,fan,patterns,isSelfDraw:true,loser:null,points:pts}};
+    });
+  }
   function handleNextHand(){
     if(!hand) return;
     const ns=advanceSession(hand);
@@ -344,24 +399,9 @@ export default function App() {
     setSelectedTile(null);
   }
 
-  function handleSelfDraw(){
-    setHand(prev=>{
-      if(!prev||!prev._canSelfDraw) return prev;
-      const p=humanIdx;
-      // Import dynamically at runtime
-      const {fan,patterns}=calcFan(prev.hands[p],prev.melds[p],prev.drawnTile,true,prev.seatWinds[p],prev.session.round,prev.flowers[p]);
-      if(fan<prev.session.minFan) return prev;
-      const pts=fanToPoints(fan);
-      const scores=[...prev.session.scores];
-      for(let i=0;i<4;i++){if(i!==p)scores[i]-=pts;}
-      scores[p]+=pts*3;
-      return {...prev,session:{...prev.session,scores},phase:'finished',result:{type:'win',winner:p,fan,patterns,isSelfDraw:true,loser:null,points:pts}};
-    });
-  }
-
+  // ── Screens ──
   if(screen==='setup') return <SetupScreen onStart={handleStart} onSimulate={handleSimulate}/>;
   if(screen==='sim'&&simConfig) return <SimLive players={simConfig.players} totalGames={simConfig.games} minFan={simConfig.minFan} onBack={()=>setScreen('setup')}/>;
-
   if(screen==='summary'&&hand){
     const scores=hand.session.scores;
     const ranked=hand.session.players.map((p,i)=>({...p,score:scores[i],i})).sort((a,b)=>b.score-a.score);
@@ -382,54 +422,69 @@ export default function App() {
       </div>
     );
   }
-
   if(!hand) return null;
 
-  const {session,hands,melds,discards,flowers,seatWinds,currentPlayer,drawnTile,phase,claimPending,result,log}=hand;
+  const {session,hands,melds,discards,flowers,seatWinds,currentPlayer,drawnTile,phase,claimPending,result,log,wall}=hand;
   const {players,dealer}=session;
   const isHumanTurn=currentPlayer===humanIdx&&!result;
   const roundLabel=['東','南','西','北'][session.round]||'東';
 
-  // Position mapping
-  const posOf=(offset)=>(humanIdx+offset)%4;
-  const topPi=posOf(2), rightPi=posOf(1), leftPi=posOf(3);
+  // Positions relative to human: bottom=human, right=(h+1)%4, top=(h+2)%4, left=(h+3)%4
+  const rightPi=(humanIdx+1)%4, topPi=(humanIdx+2)%4, leftPi=(humanIdx+3)%4;
 
   const humanHand=hands[humanIdx];
   const humanDrawnTile=currentPlayer===humanIdx?drawnTile:null;
+
+  // Drawn tile always at the right: separate hand tiles (all except drawn) and drawn tile
+  const handTiles = humanDrawnTile
+    ? humanHand.filter(t=>t.id!==humanDrawnTile.id)
+    : humanHand;
+  const drawnTileObj = humanDrawnTile || null;
+
   const hint=(isHumanTurn&&phase==='discard')?analyzeHand(humanHand,melds[humanIdx]):null;
 
   return (
     <div className="app">
+      {/* Header */}
       <div className="hdr">
         <span className="hdr-title">🀄 香港麻雀</span>
         <span className="hdr-info">
-          <span>{roundLabel}風圈</span>{' '}第 {session.handsPlayed+1} 局{' — 莊：'}<span>{players[dealer].name}</span>
+          {roundLabel}風圈 第{session.handsPlayed+1}局
+          {' — 莊：'}<span>{players[dealer].name}</span>
+          {' 剩牌：'}<span>{wall?.length||0}</span>
         </span>
         <div style={{marginLeft:'auto',display:'flex',gap:8,alignItems:'center'}}>
-          <label style={{fontSize:'0.75rem',color:'var(--text-dim)',display:'flex',gap:4,alignItems:'center',cursor:'pointer'}}>
-            <input type="checkbox" checked={showAllTiles} onChange={e=>setShowAllTiles(e.target.checked)}/>
-            顯示對家手牌
-          </label>
+          <button
+            className={`btn ${debug?'btn-purple':'btn-gray'}`}
+            style={{fontSize:'0.72rem',padding:'3px 9px'}}
+            onClick={()=>setDebug(d=>!d)}
+          >{debug?'🔍 Debug 開':'🔍 Debug 關'}</button>
           <button className="btn btn-gray" onClick={()=>setScreen('setup')}>返回</button>
         </div>
       </div>
 
+      {/* Scores */}
       <div className="scores">
         {players.map((p,i)=>(
           <div key={i} className={`score-cell${i===currentPlayer?' active':''}${i===dealer?' dealer-cell':''}`}>
-            <span className="sc-wind">{WIND_LABELS[seatWinds[i]]}</span>
-            {i===dealer&&<span className="sc-dealer">莊</span>}
+            <span className="badge badge-wind">{WIND_LABELS[seatWinds[i]]}</span>
+            {i===dealer&&<span className="badge badge-dealer">莊</span>}
             <span className="sc-name">{p.name}</span>
-            <span className="sc-score">{session.scores[i]}</span>
+            <span className="sc-score">{session.scores[i]>0?'+':''}{session.scores[i]}</span>
           </div>
         ))}
       </div>
 
+      {/* Table */}
       <div className="table">
-        <OpponentPanel player={players[topPi]} hand={hands[topPi]} melds={melds[topPi]} discards={discards[topPi]} flowers={flowers[topPi]} seatWind={seatWinds[topPi]} isDealer={topPi===dealer} isTurn={topPi===currentPlayer&&!result} showTiles={showAllTiles}/>
-        <OpponentPanel player={players[leftPi]} hand={hands[leftPi]} melds={melds[leftPi]} discards={discards[leftPi]} flowers={flowers[leftPi]} seatWind={seatWinds[leftPi]} isDealer={leftPi===dealer} isTurn={leftPi===currentPlayer&&!result} showTiles={showAllTiles}/>
-        <OpponentPanel player={players[rightPi]} hand={hands[rightPi]} melds={melds[rightPi]} discards={discards[rightPi]} flowers={flowers[rightPi]} seatWind={seatWinds[rightPi]} isDealer={rightPi===dealer} isTurn={rightPi===currentPlayer&&!result} showTiles={showAllTiles}/>
+        {/* Top opponent */}
+        <OpponentPanel player={players[topPi]} hand={hands[topPi]} melds={melds[topPi]} discards={discards[topPi]} flowers={flowers[topPi]} seatWind={seatWinds[topPi]} isDealer={topPi===dealer} isTurn={topPi===currentPlayer&&!result} debug={debug}/>
+        {/* Left opponent */}
+        <OpponentPanel player={players[leftPi]} hand={hands[leftPi]} melds={melds[leftPi]} discards={discards[leftPi]} flowers={flowers[leftPi]} seatWind={seatWinds[leftPi]} isDealer={leftPi===dealer} isTurn={leftPi===currentPlayer&&!result} debug={debug}/>
+        {/* Right opponent */}
+        <OpponentPanel player={players[rightPi]} hand={hands[rightPi]} melds={melds[rightPi]} discards={discards[rightPi]} flowers={flowers[rightPi]} seatWind={seatWinds[rightPi]} isDealer={rightPi===dealer} isTurn={rightPi===currentPlayer&&!result} debug={debug}/>
 
+        {/* Center */}
         <div className="center">
           <div className="discards-grid">
             <div className="dpool">
@@ -450,22 +505,29 @@ export default function App() {
             </div>
           </div>
 
+          <div className="wall-count">剩牌：<span>{wall?.length||0}</span> 張</div>
+
           <div className="game-log">
             {[...log].reverse().slice(0,15).map((e,i)=><div key={i} className="log-entry">{e}</div>)}
           </div>
 
           {phase==='claiming'&&claimPending&&(
-            <ClaimPrompt claimPending={claimPending} players={players} onWin={handleClaimWin} onPong={handlePong} onChi={handleChi} onPass={handlePass}/>
+            <ClaimPrompt
+              claimPending={claimPending} players={players}
+              onWin={()=>setHand(prev=>playerClaimWin(prev))}
+              onPong={()=>setHand(prev=>playerPong(prev))}
+              onChi={tiles=>setHand(prev=>playerChi(prev,tiles))}
+              onPass={()=>setHand(prev=>playerPass(prev))}
+            />
           )}
         </div>
 
+        {/* Bottom — human */}
         <div className="bottom-area">
           <div className="hand-top">
-            <span className="hand-label">
-              {players[humanIdx].name}
-              {humanIdx===dealer&&<span style={{marginLeft:6}} className="sc-dealer">莊</span>}
-              <span style={{marginLeft:6}} className="sc-wind">{WIND_LABELS[seatWinds[humanIdx]]}</span>
-            </span>
+            <span className="hand-label">{players[humanIdx].name}</span>
+            <span className="badge badge-wind">{WIND_LABELS[seatWinds[humanIdx]]}</span>
+            {humanIdx===dealer&&<span className="badge badge-dealer">莊</span>}
             <FlowerRow flowers={flowers[humanIdx]}/>
             {melds[humanIdx].length>0&&(
               <div className="melds-row">
@@ -477,24 +539,31 @@ export default function App() {
                 ))}
               </div>
             )}
-            <div style={{marginLeft:'auto',display:'flex',gap:6}}>
+            <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
               {hand._canSelfDraw&&isHumanTurn&&(
                 <button className="btn btn-red" onClick={handleSelfDraw}>自摸！</button>
               )}
-              <button className="btn btn-red" disabled={!selectedTile||!isHumanTurn||phase!=='discard'} onClick={handleDiscard}>打出所選</button>
+              <button className="btn btn-red"
+                disabled={!selectedTile||!isHumanTurn||phase!=='discard'}
+                onClick={handleDiscard}>打出所選</button>
             </div>
           </div>
 
+          {/* Hand rack: regular tiles + gap + drawn tile always at right */}
           <div className="hand-rack">
-            {(() => {
-              const drawnIdx = humanDrawnTile ? humanHand.findIndex(x=>x.id===humanDrawnTile.id) : -1;
-              const elems = [];
-              humanHand.forEach((t, myIdx) => {
-                if (myIdx === drawnIdx && drawnIdx > 0) elems.push(<div key="drawn-gap" className="drawn-gap"/>);
-                elems.push(<Tile key={t.id} tile={t} selected={selectedTile?.id===t.id} drawn={humanDrawnTile?.id===t.id} onClick={()=>handleTileClick(t)}/>);
-              });
-              return elems;
-            })()}
+            {handTiles.map(t=>(
+              <Tile key={t.id} tile={t}
+                selected={selectedTile?.id===t.id}
+                onClick={()=>handleTileClick(t)}/>
+            ))}
+            {drawnTileObj && <>
+              <div className="drawn-gap"/>
+              <Tile
+                tile={drawnTileObj}
+                drawn
+                selected={selectedTile?.id===drawnTileObj.id}
+                onClick={()=>handleTileClick(drawnTileObj)}/>
+            </>}
           </div>
 
           {hint&&(
