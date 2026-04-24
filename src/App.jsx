@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import './index.css';
 import {
   SUITS, HONOURS, WINDS, FLOWERS, TILE_EMOJI, TILE_DISPLAY,
-  sortHand, analyzeHand, calcFan, fanToPoints, isFlower
+  sortHand, analyzeHand, calcFan, fanToPoints
 } from './game/tiles.js';
 import {
   createSession, startHand, drawTile, doDiscard,
@@ -15,43 +15,148 @@ import { STRATEGIES } from './ai/strategies.js';
 const WIND_LABELS = ['東','南','西','北'];
 const FLOWER_NAMES = { plum:'梅',orchid:'蘭',chrysanthemum:'菊',bamboo:'竹',spring:'春',summer:'夏',autumn:'秋',winter:'冬' };
 const SUIT_LABEL = { man:'萬', pin:'筒', sou:'索' };
-const SUIT_FULL  = { man:'萬子', pin:'筒子', sou:'索子' };
 
 // ─── Tile Component ───────────────────────────────────────────────────────────
-function tileContent(key) {
-  // Suits
+// ─── Tile SVG art ─────────────────────────────────────────────────────────────
+// Dot layouts for 筒 (circles)
+const PIN_DOTS = {
+  1: [[50,50]],
+  2: [[50,30],[50,70]],
+  3: [[50,20],[50,50],[50,80]],
+  4: [[30,30],[70,30],[30,70],[70,70]],
+  5: [[30,28],[70,28],[50,50],[30,72],[70,72]],
+  6: [[30,25],[70,25],[30,50],[70,50],[30,75],[70,75]],
+  7: [[30,22],[70,22],[30,48],[70,48],[30,72],[70,72],[50,35]],
+  8: [[25,22],[50,22],[75,22],[25,50],[75,50],[25,78],[50,78],[75,78]],
+  9: [[25,20],[50,20],[75,20],[25,50],[50,50],[75,50],[25,80],[50,80],[75,80]],
+};
+// Bamboo stick layouts for 索
+const SOU_STICKS = {
+  1: [[50,50,28]],  // [cx, cy, r]
+  2: [[50,28],[50,72]],
+  3: [[50,20],[50,50],[50,80]],
+  4: [[32,28],[68,28],[32,72],[68,72]],
+  5: [[32,22],[68,22],[50,50],[32,78],[68,78]],
+  6: [[32,22],[68,22],[32,50],[68,50],[32,78],[68,78]],
+  7: [[32,18],[68,18],[32,44],[68,44],[32,68],[68,68],[50,82]],
+  8: [[25,20],[50,20],[75,20],[25,50],[75,50],[25,78],[50,78],[75,78]],
+  9: [[25,18],[50,18],[75,18],[25,50],[50,50],[75,50],[25,82],[50,82],[75,82]],
+};
+
+const DOT_R_FULL = 9.5;
+const DOT_R_SMALL = 6;
+
+function PinFace({ n, isSmall, inDiscard }) {
+  const dots = PIN_DOTS[n] || [];
+  const r = isSmall ? DOT_R_SMALL : DOT_R_FULL;
+  const color = inDiscard ? '#1a5ea8' : '#1a5ea8';
+  const ringColor = inDiscard ? '#0a3060' : '#0d3d78';
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
+      {dots.map(([cx,cy], i) => (
+        <g key={i}>
+          <circle cx={cx} cy={cy} r={r+1.5} fill={ringColor}/>
+          <circle cx={cx} cy={cy} r={r} fill={color}/>
+          <circle cx={cx-r*0.3} cy={cy-r*0.3} r={r*0.28} fill="rgba(255,255,255,0.35)"/>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function SouFace({ n, isSmall, inDiscard }) {
+  if (n === 1) {
+    // Sou 1 = green circle (special)
+    return (
+      <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
+        <circle cx={50} cy={50} r={32} fill="#1a7a3c" stroke="#0d4020" strokeWidth={3}/>
+        <circle cx={38} cy={38} r={10} fill="rgba(255,255,255,0.25)"/>
+      </svg>
+    );
+  }
+  const sticks = SOU_STICKS[n] || [];
+  const w = isSmall ? 6 : 9, h = isSmall ? 18 : 26;
+  const colors = ['#c0392b','#27ae60','#27ae60','#27ae60','#27ae60','#27ae60','#27ae60','#27ae60','#27ae60'];
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
+      {sticks.map(([cx,cy], i) => (
+        <g key={i} transform={`translate(${cx},${cy})`}>
+          <rect x={-w/2} y={-h/2} width={w} height={h} rx={w/2} fill={i===0&&n>1?colors[0]:colors[i]}/>
+          <rect x={-w/2+1.5} y={-h/2+2} width={2} height={h-4} rx={1} fill="rgba(255,255,255,0.3)"/>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+// 萬 uses large red numeral + 萬 character
+function ManFace({ n, isSmall }) {
+  const CHINESE_NUM = ['一','二','三','四','五','六','七','八','九'];
+  return (
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:0}}>
+      <span style={{fontSize:isSmall?'0.85em':'1.3em',fontWeight:800,color:'#c0392b',lineHeight:1}}>{CHINESE_NUM[n-1]}</span>
+      <span style={{fontSize:isSmall?'0.55em':'0.75em',color:'#7a3010',fontWeight:700,lineHeight:1}}>萬</span>
+    </div>
+  );
+}
+
+// Honour tile face
+const HONOUR_COLORS = { east:'#1a6ea8',south:'#c0392b',west:'#27ae60',north:'#2c2c2c',chun:'#c0392b',hatsu:'#27ae60',haku:'#2c2c2c' };
+function HonourFace({ tkey, isSmall }) {
+  const ch = TILE_DISPLAY[tkey] || tkey;
+  const color = HONOUR_COLORS[tkey] || '#333';
+  return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
+      <span style={{fontSize:isSmall?'0.9em':'1.4em',fontWeight:900,color,lineHeight:1}}>{ch}</span>
+    </div>
+  );
+}
+
+// Flower face
+const FLOWER_COLORS_MAP = { plum:'#c0392b',orchid:'#8e44ad',chrysanthemum:'#e67e22',bamboo:'#27ae60',spring:'#27ae60',summer:'#e67e22',autumn:'#c0392b',winter:'#2980b9' };
+const FLOWER_EMOJI_MAP = { plum:'梅',orchid:'蘭',chrysanthemum:'菊',bamboo:'竹',spring:'春',summer:'夏',autumn:'秋',winter:'冬' };
+function FlowerFace({ tkey, isSmall }) {
+  const color = FLOWER_COLORS_MAP[tkey] || '#888';
+  const ch = FLOWER_EMOJI_MAP[tkey] || '花';
+  return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
+      <span style={{fontSize:isSmall?'0.8em':'1.1em',fontWeight:900,color,lineHeight:1}}>{ch}</span>
+    </div>
+  );
+}
+
+function TileFace({ tkey, isSmall, inDiscard }) {
+  // Suit tiles
   for (const s of SUITS) {
-    if (key.startsWith(s)) {
-      const num = parseInt(key.slice(s.length));
-      return { num: `${num}`, suit: SUIT_LABEL[s], cls: s };
+    if (tkey.startsWith(s) && /\d$/.test(tkey)) {
+      const n = parseInt(tkey.slice(s.length));
+      if (s==='man') return <ManFace n={n} isSmall={isSmall}/>;
+      if (s==='pin') return <PinFace n={n} isSmall={isSmall} inDiscard={inDiscard}/>;
+      if (s==='sou') return <SouFace n={n} isSmall={isSmall} inDiscard={inDiscard}/>;
     }
   }
-  // Flowers
-  if (FLOWERS.includes(key)) {
-    const idx = FLOWERS.indexOf(key);
-    const isRed = idx >= 4;
-    return { num: FLOWER_NAMES[key], suit: '', cls: isRed ? 'flower-red' : 'flower-green' };
-  }
-  // Honours
-  const label = TILE_DISPLAY[key] || key;
-  return { num: label, suit: '', cls: 'hon' };
+  if (FLOWERS.includes(tkey)) return <FlowerFace tkey={tkey} isSmall={isSmall}/>;
+  return <HonourFace tkey={tkey} isSmall={isSmall}/>;
 }
 
 function Tile({ tile, selected, drawn, small, inDiscard, onClick }) {
-  const { num, suit, cls } = tileContent(tile.key);
   const cn = ['mj-tile', small&&'small', selected&&'sel', drawn&&'drawn', inDiscard&&'in-discard'].filter(Boolean).join(' ');
   return (
     <div className={cn} onClick={onClick} title={TILE_DISPLAY[tile.key] || tile.key}>
-      <div className="tile-face">
-        <span className={`tile-num ${cls}`}>{num}</span>
-        {suit && <span className="tile-suit">{suit}</span>}
-      </div>
+      <TileFace tkey={tile.key} isSmall={small} inDiscard={inDiscard}/>
     </div>
   );
 }
 
 function TileBack({ small }) {
-  return <div className={`mj-tile back${small?' small':''}`}><div className="tile-face"/></div>;
+  return (
+    <div className={`mj-tile back${small?' small':''}`}>
+      <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block',opacity:0.3}}>
+        <rect x={10} y={10} width={80} height={80} rx={6} fill="none" stroke="#c8973a" strokeWidth={3}/>
+        <rect x={20} y={20} width={60} height={60} rx={4} fill="none" stroke="#c8973a" strokeWidth={1.5}/>
+      </svg>
+    </div>
+  );
 }
 
 // ─── Tile Tracker ─────────────────────────────────────────────────────────────

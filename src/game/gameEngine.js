@@ -1,6 +1,6 @@
 import {
   buildWall, isFlower, sortHand, checkWin, calcFan, fanToPoints,
-  tileKey, SUITS, WINDS, analyzeHand
+  tileKey, SUITS, WINDS, analyzeHand, TILE_DISPLAY
 } from './tiles.js';
 import { aiDiscard, aiWantsPong, aiWantsChi } from '../ai/strategies.js';
 
@@ -118,6 +118,7 @@ export function drawTile(state, playerIdx) {
     currentPlayer: playerIdx,
     phase: 'discard',
     log: [...state.log, `${state.session.players[playerIdx].name} 摸牌`],
+    turnCount: (state.turnCount || 0) + 1,
     _canSelfDraw: canWin,
   };
 }
@@ -141,7 +142,7 @@ export function doDiscard(state, playerIdx, tileId) {
     drawnTile: null,
     lastDiscard: tile,
     lastDiscarder: playerIdx,
-    log: [...state.log, `${state.session.players[playerIdx].name} 打出 ${tile.key}`],
+    log: [...state.log, `${state.session.players[playerIdx].name} 打出 ${TILE_DISPLAY[tile.key]||tile.key}`],
     _canSelfDraw: false,
   };
 
@@ -229,7 +230,8 @@ function getChiOptions(hand, tile) {
 
 function suitNum(tile) {
   for (let i = 0; i < SUITS.length; i++) {
-    if (tile.key.startsWith(SUITS[i])) return { suit: i, num: parseInt(tile.key.slice(-1)) };
+    if (tile.key.startsWith(SUITS[i]) && /\d$/.test(tile.key))
+      return { suit: i, num: parseInt(tile.key.slice(-1)) };
   }
   return null;
 }
@@ -247,7 +249,8 @@ export function resolveClaimsAI(state, claims, tile, discarder) {
   for (const claim of pongClaims) {
     const p = claim.player;
     const strategy = state.session.players[p].strategy || 'nash';
-    if (aiWantsPong(tile, strategy)) {
+    if (aiWantsPong(tile, state.hands[p], state.melds[p], strategy,
+        state.seatWinds[p], state.session.round, state.session.minFan, state)) {
       return executePong(state, p, claim.tiles);
     }
   }
@@ -256,7 +259,7 @@ export function resolveClaimsAI(state, claims, tile, discarder) {
   for (const claim of chiClaims) {
     const p = claim.player;
     const strategy = state.session.players[p].strategy || 'nash';
-    if (aiWantsChi(tile, state.hands[p], state.melds[p], strategy)) {
+    if (aiWantsChi(tile, state.hands[p], state.melds[p], strategy, state)) {
       return executeChi(state, p, claim.tiles, tile);
     }
   }
@@ -281,7 +284,7 @@ function executePong(state, p, meldTiles) {
     currentPlayer: p,
     phase: 'discard',
     claimPending: null,
-    log: [...state.log, `${state.session.players[p].name} 碰！`],
+    log: [...state.log, `${state.session.players[p].name} 碰 ${TILE_DISPLAY[meld.tiles[0]?.key]||''}！`],
   };
 }
 
@@ -339,7 +342,7 @@ function executeWin(state, winner, tile, isSelfDraw, fan, patterns) {
       loser,
       winType,
     },
-    log: [...state.log, `${state.session.players[winner].name} 糊牌！${fan}番 ${points}點`],
+    log: [...state.log, `🀄 ${state.session.players[winner].name} 胡牌！${fan}番 ${points}點`],
   };
 }
 
@@ -398,8 +401,12 @@ export function aiTurn(state) {
       }
     }
 
-    const strategy = player.strategy || 'nash';
-    const discard = aiDiscard(state.hands[p], state.melds[p], strategy);
+    const strategy = player.strategy || 'balanced';
+    const discard = aiDiscard(
+      state.hands[p], state.melds[p], strategy,
+      state.seatWinds[p], state.session.round, state.session.minFan,
+      state, state.turnCount || 0
+    );
     return doDiscard(state, p, discard.id);
   }
 
