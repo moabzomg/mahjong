@@ -341,3 +341,64 @@ export function aiWantsChi(tile, hand, melds, strategy='balanced', gameState=nul
 export function meetsMinFan(fan, minFan) {
   return fan >= minFan;
 }
+
+// ─── Hand scan: detect best lane for a given hand ──────────────────────────────
+export function scanBestLane(tiles, melds, seatWind, roundWind, minFan = 3) {
+  const cnt = {};
+  for (const t of tiles) cnt[t.key] = (cnt[t.key]||0)+1;
+  const allKeys = [...import.meta.glob ? [] : []]; // runtime tiles
+
+  // Score each possible lane
+  const scores = {};
+
+  // Thirteen orphans
+  const oKeys=['man1','man9','pin1','pin9','sou1','sou9','east','south','west','north','chun','hatsu','haku'];
+  const orphanHave = oKeys.filter(k=>cnt[k]).length;
+  scores['orphan'] = orphanHave * 10 + (oKeys.some(k=>cnt[k]>=2)?5:0) - 130;
+
+  // All triplets / 對對胡
+  const pairCt = Object.values(cnt).filter(v=>v>=2).length;
+  const tripletCt = Object.values(cnt).filter(v=>v>=3).length;
+  scores['triplet'] = tripletCt * 30 + pairCt * 10 - 30;
+
+  // Flush
+  const suitCt = { man:0,pin:0,sou:0 };
+  for (const t of tiles) {
+    for (const s of ['man','pin','sou']) if (t.key.startsWith(s)&&/\d$/.test(t.key)) { suitCt[s]++; break; }
+  }
+  const maxSuit = Math.max(...Object.values(suitCt));
+  scores['flush'] = maxSuit * 15 - 50;
+
+  // Value tiles (dragons/winds)
+  const DRAG = ['chun','hatsu','haku'];
+  const WIND4 = ['east','south','west','north'];
+  const dragonPairs = DRAG.filter(k=>cnt[k]>=2).length;
+  const dragonTrips = DRAG.filter(k=>cnt[k]>=3).length;
+  scores['value'] = dragonPairs * 20 + dragonTrips * 40 + ((cnt[WIND4[seatWind]]||0)>=2?25:0);
+  scores['dragon'] = dragonPairs * 30 + dragonTrips * 60;
+  scores['winds'] = WIND4.filter(k=>cnt[k]>=2).length * 25 + WIND4.filter(k=>cnt[k]>=3).length * 40;
+
+  // Speed (shanten-based — import calcShanten)
+  scores['speed'] = 50 - (pairCt + tripletCt) * 5; // simple heuristic
+
+  // Seven pairs
+  scores['sevenPairs'] = pairCt * 25 - 50;
+
+  // Rank all lanes
+  const ranked = Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  return {
+    best: ranked[0][0],
+    ranked: ranked.map(([lane, score]) => ({ lane, score: Math.round(score) })),
+    details: {
+      orphanHave, pairCt, tripletCt, maxSuit,
+      dragonPairs, dragonTrips,
+      suitCt,
+    }
+  };
+}
+
+export const LANE_LABELS = {
+  flush: '清一色', triplet: '對對胡', value: '役牌', dragon: '大三元',
+  winds: '大四喜', orphan: '十三么', speed: '速攻', sevenPairs: '七對子',
+  balanced: '均衡', defensive: '保守',
+};

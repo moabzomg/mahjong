@@ -6,10 +6,10 @@ import {
 } from './game/tiles.js';
 import {
   createSession, startHand, drawTile, doDiscard,
-  aiTurn, playerClaimWin, playerPong, playerChi, playerPass, advanceSession,
-  runOneGame
+  aiTurn, playerClaimWin, playerPong, playerKongFromDiscard, playerChi, playerPass, advanceSession,
+  declareAnKong, declareAddKong, runOneGame
 } from './game/gameEngine.js';
-import { STRATEGIES } from './ai/strategies.js';
+import { STRATEGIES, scanBestLane, LANE_LABELS } from './ai/strategies.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const WIND_LABELS = ['東','南','西','北'];
@@ -26,26 +26,29 @@ const FLOWER_COLOR = { plum:'#c0392b',orchid:'#8e44ad',chrysanthemum:'#d35400',b
 const PIN_DOT_COLORS = {
   1:  () => ['#c0392b'],
   2:  () => ['#1a6ea8','#27ae60'],
-  3:  () => ['#c0392b','#1a6ea8','#27ae60'],
+  3:  () => ['#c0392b','#1a6ea8','#27ae60'],  // diagonal: red TL, blue C, green BR
   4:  () => ['#1a6ea8','#1a6ea8','#27ae60','#27ae60'],
   5:  () => ['#1a6ea8','#27ae60','#c0392b','#1a6ea8','#27ae60'],
   6:  () => ['#1a6ea8','#1a6ea8','#27ae60','#27ae60','#c0392b','#c0392b'],
-  7:  () => ['#1a6ea8','#27ae60','#1a6ea8','#27ae60','#c0392b','#c0392b','#1a6ea8'],
-  8:  () => ['#1a6ea8','#1a6ea8','#27ae60','#27ae60','#c0392b','#c0392b','#1a6ea8','#27ae60'],
+  7:  () => ['#1a6ea8','#1a6ea8','#1a6ea8','#27ae60','#27ae60','#27ae60','#c0392b'],  // 3L blue + 3R green + 1bot red
+  8:  () => ['#1a6ea8','#27ae60','#1a6ea8','#27ae60','#c0392b','#1a6ea8','#27ae60','#c0392b'],  // alternating L/R
   9:  () => ['#c0392b','#1a6ea8','#27ae60','#c0392b','#1a6ea8','#27ae60','#c0392b','#1a6ea8','#27ae60'],
 };
 
-// Traditional dot positions — standard mahjong layout
+// Traditional dot positions — authentic HK mahjong layout
+// 3-pin: diagonal TL→C→BR like a die
+// 7-pin: 3 left col + 3 right col + 1 bottom centre
+// 8-pin: 2 left col × 4 + 2 right col × 4
 const PIN_POSITIONS = {
   1: [[50,50]],
-  2: [[50,30],[50,70]],
-  3: [[50,22],[50,50],[50,78]],
-  4: [[31,30],[69,30],[31,70],[69,70]],
-  5: [[31,27],[69,27],[50,50],[31,73],[69,73]],
-  6: [[31,24],[69,24],[31,50],[69,50],[31,76],[69,76]],
-  7: [[31,21],[69,21],[31,47],[69,47],[31,71],[69,71],[50,84]],
-  8: [[25,21],[50,21],[75,21],[25,50],[75,50],[25,79],[50,79],[75,79]],
-  9: [[25,19],[50,19],[75,19],[25,50],[50,50],[75,50],[25,81],[50,81],[75,81]],
+  2: [[50,28],[50,72]],
+  3: [[30,25],[50,50],[70,75]],          // diagonal: TL, centre, BR
+  4: [[30,28],[70,28],[30,72],[70,72]],
+  5: [[30,25],[70,25],[50,50],[30,75],[70,75]],
+  6: [[30,22],[70,22],[30,50],[70,50],[30,78],[70,78]],
+  7: [[30,18],[70,18],[30,44],[70,44],[30,70],[70,70],[50,84]],  // 3+3 cols + 1 bottom
+  8: [[28,18],[72,18],[28,38],[72,38],[28,58],[72,58],[28,78],[72,78]],  // 2 cols of 4
+  9: [[26,18],[50,18],[74,18],[26,50],[50,50],[74,50],[26,82],[50,82],[74,82]],
 };
 
 // Dot sizes: outer ring + inner fill
@@ -75,31 +78,38 @@ function PinFace({ n, isSmall }) {
 
 // Traditional 索 bamboo — each stick = tapered green bamboo with node rings
 // Sou-1 is a special peacock/bird tile
+// Bamboo stick positions — authentic HK mahjong layout
+// 2-sou: single col of 2
+// 3-sou: single col of 3
+// 4-6: two columns
+// 7-sou: 3+3 columns + 1 top centre
+// 8-sou: 2 columns of 4
+// 9-sou: 3 columns of 3
 const SOU_POSITIONS = {
-  // single column
   2: [[50,30],[50,70]],
-  3: [[50,21],[50,50],[50,79]],
-  // two columns
-  4: [[34,30],[66,30],[34,70],[66,70]],
-  5: [[34,26],[66,26],[50,50],[34,74],[66,74]],
-  6: [[34,23],[66,23],[34,50],[66,50],[34,77],[66,77]],
-  7: [[34,19],[66,19],[34,45],[66,45],[34,69],[66,69],[50,83]],
-  8: [[26,19],[50,19],[74,19],[26,50],[74,50],[26,81],[50,81],[74,81]],
-  9: [[26,17],[50,17],[74,17],[26,50],[50,50],[74,50],[26,83],[50,83],[74,83]],
+  3: [[50,20],[50,50],[50,80]],
+  4: [[35,28],[65,28],[35,72],[65,72]],
+  5: [[35,24],[65,24],[50,50],[35,76],[65,76]],
+  6: [[35,21],[65,21],[35,50],[65,50],[35,79],[65,79]],
+  7: [[50,16],[35,42],[65,42],[35,64],[65,64],[35,84],[65,84]],   // 1 top-centre + 3+3
+  8: [[30,18],[70,18],[30,38],[70,38],[30,58],[70,58],[30,78],[70,78]],  // 2 cols of 4
+  9: [[25,18],[50,18],[75,18],[25,50],[50,50],[75,50],[25,82],[50,82],[75,82]],  // 3 cols of 3
 };
 
 // Traditional bamboo stick colours: alternating green/red pattern
 // Each entry is [stickColor, nodeColor]
+// Per-tile bamboo colours indexed by stick number (0-based)
+// Colour varies: green sticks with occasional red highlight
 const SOUColors = [
-  ['#2e8b3a','#1a5a22'], // green
-  ['#c0392b','#8a1a0a'], // red (1st of each column usually red)
-  ['#2e8b3a','#1a5a22'],
-  ['#2e8b3a','#1a5a22'],
-  ['#c0392b','#8a1a0a'],
-  ['#2e8b3a','#1a5a22'],
-  ['#2e8b3a','#1a5a22'],
-  ['#c0392b','#8a1a0a'],
-  ['#2e8b3a','#1a5a22'],
+  ['#2e8b3a','#1a5a22'], // 0: green
+  ['#c0392b','#8a1a0a'], // 1: red
+  ['#2e8b3a','#1a5a22'], // 2: green
+  ['#c0392b','#8a1a0a'], // 3: red
+  ['#2e8b3a','#1a5a22'], // 4: green
+  ['#c0392b','#8a1a0a'], // 5: red
+  ['#2e8b3a','#1a5a22'], // 6: green
+  ['#c0392b','#8a1a0a'], // 7: red
+  ['#2e8b3a','#1a5a22'], // 8: green
 ];
 
 function BambooStick({ cx, cy, w, h, stickColor, nodeColor }) {
@@ -174,10 +184,33 @@ function HonourFace({ tkey, isSmall }) {
     </div>
   );
 }
+// Flower metadata: [Chinese, number (1-4 per season/flower set), emoji]
+const FLOWER_META = {
+  plum:         { ch:'梅', n:1, emoji:'🌸' },
+  orchid:       { ch:'蘭', n:2, emoji:'🌺' },
+  chrysanthemum:{ ch:'菊', n:3, emoji:'🌼' },
+  bamboo:       { ch:'竹', n:4, emoji:'🎋' },
+  spring:       { ch:'春', n:1, emoji:'🌱' },
+  summer:       { ch:'夏', n:2, emoji:'☀️' },
+  autumn:       { ch:'秋', n:3, emoji:'🍂' },
+  winter:       { ch:'冬', n:4, emoji:'❄️' },
+};
+
 function FlowerFace({ tkey, isSmall }) {
+  const meta = FLOWER_META[tkey] || { ch: tkey, n:'', emoji:'🌸' };
+  const color = FLOWER_COLOR[tkey] || '#888';
+  if (isSmall) {
+    return (
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:0,lineHeight:1}}>
+        <span style={{fontSize:'0.7em',lineHeight:1}}>{meta.emoji}</span>
+        <span style={{fontSize:'0.55em',fontWeight:800,color,lineHeight:1}}>{meta.ch}{meta.n}</span>
+      </div>
+    );
+  }
   return (
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
-      <span style={{fontSize:isSmall?'.78em':'1.05em',fontWeight:900,color:FLOWER_COLOR[tkey]||'#888',lineHeight:1}}>{FLOWER_NAMES[tkey]||tkey}</span>
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:1,lineHeight:1}}>
+      <span style={{fontSize:'1.1em',lineHeight:1}}>{meta.emoji}</span>
+      <span style={{fontSize:'0.6em',fontWeight:900,color,lineHeight:1}}>{meta.ch}{meta.n}</span>
     </div>
   );
 }
@@ -310,7 +343,7 @@ function FlowerRow({ flowers }) {
 }
 
 // ─── Opponent Panel ───────────────────────────────────────────────────────────
-function OpponentPanel({ player, hand, melds, discards, flowers, seatWind, isDealer, isTurn, debug, highlightKey }) {
+function OpponentPanel({ player, hand, melds, discards, flowers, seatWind, isDealer, isTurn, debug, highlightKey, seatIdx }) {
   return (
     <div className="aip">
       <div className="opp-name">
@@ -319,6 +352,7 @@ function OpponentPanel({ player, hand, melds, discards, flowers, seatWind, isDea
         {isTurn&&<span className="badge badge-turn">●</span>}
         <span>{player.name}</span>
         <span className="opp-remain">{hand.length}張</span>
+        {debug&&!player.isHuman&&<span className="badge badge-debug" style={{fontSize:'.6rem'}}>{LANE_LABELS[player.strategy]||player.strategy}</span>}
         {flowers?.length>0&&<div className="flower-row" style={{marginLeft:0}}>
           {flowers.map(f=>{const isRed=FLOWERS.indexOf(f.key)>=4;return <span key={f.id} className={`flower-badge ${isRed?'red':'green'}`} style={{fontSize:'.6rem'}}>{FLOWER_NAMES[f.key]}</span>;})}
         </div>}
@@ -376,14 +410,26 @@ function ClaimPrompt({ claimPending, players, onWin, onPong, onChi, onPass }) {
 }
 
 // ─── Win Overlay ──────────────────────────────────────────────────────────────
-function WinOverlay({ result, players, dealer, onNext }) {
+function WinOverlay({ result, players, dealer, hands, melds, flowers, seatWinds, onNext }) {
   if (!result) return null;
   if (result.type==='draw') return (
     <div className="overlay">
-      <div className="win-card">
+      <div className="win-card" style={{maxWidth:600}}>
         <div className="win-title">流局</div>
         <div className="win-subtitle">剩牌摸完</div>
         <div className="win-dealer-badge lim">冧莊（莊家連莊）</div>
+        <div style={{marginTop:16,fontSize:'0.82rem',color:'var(--dim)'}}>各家手牌：</div>
+        <div className="reveal-all-hands">
+          {players.map((p,i)=>(
+            <div key={i} className="reveal-player">
+              <div className="reveal-name">{p.name}</div>
+              <div className="reveal-tiles">
+                {sortHand(hands[i]).map(t=><div key={t.id} style={{width:26,height:34}}><TileFace tkey={t.key} isSmall/></div>)}
+                {melds[i].map((m,mi)=>m.tiles.map(t=><div key={t.id} style={{width:26,height:34,opacity:0.7}}><TileFace tkey={t.key} isSmall/></div>))}
+              </div>
+            </div>
+          ))}
+        </div>
         <br/>
         <button className="btn btn-gold" onClick={onNext}>下一局</button>
       </div>
@@ -391,11 +437,28 @@ function WinOverlay({ result, players, dealer, onNext }) {
   );
   const winner=players[result.winner];
   const isDealerWin=result.winner===dealer;
+  const winnerHand = sortHand(hands[result.winner]);
+  const winnerMelds = melds[result.winner];
   return (
     <div className="overlay">
-      <div className="win-card">
-        <div className="win-title">{winner.name} 胡牌！</div>
+      <div className="win-card" style={{maxWidth:640}}>
+        <div className="win-title">{winner.name} 糊牌！</div>
         <div className="win-subtitle">{result.isSelfDraw?'自摸':`出沖 — ${players[result.loser]?.name||''} 包`}</div>
+        {/* Winner's winning hand enlarged */}
+        <div className="win-hand-display">
+          {winnerHand.map(t=>(
+            <div key={t.id} className="win-tile-large">
+              <TileFace tkey={t.key} isSmall={false}/>
+            </div>
+          ))}
+          {winnerMelds.length>0&&<div className="win-hand-gap"/>}
+          {winnerMelds.map((m,mi)=>(
+            <div key={mi} className="win-meld-group">
+              {m.tiles.map(t=><div key={t.id} className="win-tile-large win-tile-meld"><TileFace tkey={t.key} isSmall={false}/></div>)}
+              <span className="meld-label">{m.type==='chi'?'上':m.type==='pong'?'碰':'槓'}</span>
+            </div>
+          ))}
+        </div>
         <div className="win-patterns">
           {result.patterns?.map((p,i)=><span key={i} className="pattern-tag">{p}</span>)}
         </div>
@@ -404,8 +467,143 @@ function WinOverlay({ result, players, dealer, onNext }) {
         <div className={`win-dealer-badge ${isDealerWin?'lim':'pass'}`}>
           {isDealerWin?'冧莊（莊家連莊）':'過莊（換莊）'}
         </div>
+        {/* Reveal all other players' hands */}
+        <div style={{marginTop:12,fontSize:'0.75rem',color:'var(--dim)',textAlign:'left'}}>各家手牌：</div>
+        <div className="reveal-all-hands">
+          {players.map((p,i)=>{
+            if(i===result.winner) return null;
+            return (
+              <div key={i} className="reveal-player">
+                <div className="reveal-name">{p.name}</div>
+                <div className="reveal-tiles">
+                  {sortHand(hands[i]).map(t=><div key={t.id} style={{width:24,height:32}}><TileFace tkey={t.key} isSmall/></div>)}
+                  {melds[i].map((m,mi)=>m.tiles.map(t=><div key={`${mi}-${t.id}`} style={{width:24,height:32,opacity:0.7}}><TileFace tkey={t.key} isSmall/></div>))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
         <br/>
         <button className="btn btn-gold" onClick={onNext}>下一局</button>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Rules Tab ────────────────────────────────────────────────────────────────
+const RULES_DATA = [
+  { cat:'基本役型', items:[
+    { name:'雞糊', fan:1, desc:'最基本糊法，無任何特殊役型' },
+    { name:'平糊', fan:1, desc:'全上牌（順子）糊牌，無字牌、無刻子' },
+  ]},
+  { cat:'自摸加番', items:[
+    { name:'自摸', fan:'+1', desc:'從牌墙摸到糊牌，每人付點' },
+    { name:'無花', fan:'+1', desc:'手中無任何花牌' },
+    { name:'正花', fan:'+1', desc:'摸到自己座位對應的花（梅蘭菊竹/春夏秋冬）' },
+    { name:'一台花', fan:'+2', desc:'集齊四季（春夏秋冬）或四花（梅蘭菊竹）' },
+  ]},
+  { cat:'役牌（字牌刻子）', items:[
+    { name:'門風', fan:'+1', desc:'自己座位風牌的刻子（東南西北）' },
+    { name:'圈風', fan:'+1', desc:'本局圈風牌的刻子（與門風不同時才算）' },
+    { name:'中刻', fan:'+1', desc:'三張中（紅中）' },
+    { name:'發刻', fan:'+1', desc:'三張發（青發）' },
+    { name:'白刻', fan:'+1', desc:'三張白（白板）' },
+  ]},
+  { cat:'一般役型', items:[
+    { name:'混一色', fan:3, desc:'一種花色＋字牌組成糊牌' },
+    { name:'對對胡', fan:3, desc:'全部刻子（碰）加一對將' },
+    { name:'七對子', fan:3, desc:'七對牌糊牌（需七個不同對子）' },
+  ]},
+  { cat:'高番役型', items:[
+    { name:'小三元', fan:5, desc:'兩種箭牌（中發白）刻子＋一種箭牌對' },
+    { name:'清一色', fan:7, desc:'全部同一花色（萬/筒/索）糊牌' },
+    { name:'坎坎胡', fan:7, desc:'全刻子＋自摸糊牌' },
+  ]},
+  { cat:'爆棚（最高）', items:[
+    { name:'十三么', fan:'爆棚', desc:'一九字牌各一張加一對，十三種不同牌' },
+    { name:'大三元', fan:'爆棚', desc:'中發白三種箭牌全部刻子' },
+    { name:'小四喜', fan:'爆棚', desc:'三種風牌刻子＋一種風牌對' },
+    { name:'大四喜', fan:'爆棚', desc:'東南西北四種風牌全部刻子' },
+    { name:'字一色', fan:'爆棚', desc:'全部字牌（風牌＋箭牌）糊牌' },
+    { name:'全么九', fan:'爆棚', desc:'全部一九字牌糊牌' },
+    { name:'九子連環', fan:'爆棚', desc:'同一花色1112345678999加一張' },
+    { name:'十八羅漢', fan:'爆棚', desc:'四槓子（四個槓）糊牌' },
+  ]},
+  { cat:'番數積分表', items:[
+    { name:'1番', fan:'4點', desc:'每家付4點' },
+    { name:'2番', fan:'8點', desc:'每家付8點' },
+    { name:'3番', fan:'16點', desc:'每家付16點' },
+    { name:'4番', fan:'32點', desc:'每家付32點' },
+    { name:'5番', fan:'48點', desc:'每家付48點' },
+    { name:'6番', fan:'64點', desc:'每家付64點' },
+    { name:'7番', fan:'96點', desc:'每家付96點' },
+    { name:'8番', fan:'128點', desc:'每家付128點' },
+    { name:'9番', fan:'192點', desc:'每家付192點' },
+    { name:'10番+', fan:'256點', desc:'每家付256點（上限）' },
+  ]},
+];
+
+function RulesTab({ onClose }) {
+  const [openCat, setOpenCat] = useState(null);
+  return (
+    <div className="overlay" style={{alignItems:'flex-start',paddingTop:20,overflowY:'auto'}}>
+      <div style={{background:'linear-gradient(145deg,#193824,#0d1f14)',border:'2px solid var(--gold)',borderRadius:14,padding:'20px 24px',maxWidth:560,width:'92%',margin:'0 auto'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+          <span style={{fontSize:'1.1rem',fontWeight:700,color:'var(--gold)'}}>🀄 糊牌規則與番數</span>
+          <button className="btn btn-gray" onClick={onClose}>關閉</button>
+        </div>
+        {RULES_DATA.map(cat=>(
+          <div key={cat.cat} style={{marginBottom:10}}>
+            <div className="rules-cat-hdr" onClick={()=>setOpenCat(openCat===cat.cat?null:cat.cat)}>
+              <span>{cat.cat}</span>
+              <span>{openCat===cat.cat?'▲':'▼'}</span>
+            </div>
+            {openCat===cat.cat&&(
+              <div className="rules-items">
+                {cat.items.map(item=>(
+                  <div key={item.name} className="rules-item">
+                    <span className="rules-name">{item.name}</span>
+                    <span className="rules-fan">{item.fan}</span>
+                    <span className="rules-desc">{item.desc}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Strategy Panel (for human player) ───────────────────────────────────────
+function StrategyPanel({ tiles, melds, seatWind, roundWind, minFan, chosenLane, onChoose }) {
+  const scan = tiles.length > 0 ? scanBestLane(tiles, melds, seatWind, roundWind, minFan) : null;
+  const lanes = ['flush','triplet','value','dragon','winds','orphan','speed','sevenPairs'];
+  return (
+    <div className="strategy-panel">
+      <div className="strategy-panel-title">牌路策略</div>
+      {scan && (
+        <div className="strategy-scan">
+          <span style={{fontSize:'.68rem',color:'var(--dim)'}}>AI建議：</span>
+          <span className="strategy-best-badge">{LANE_LABELS[scan.best]||scan.best}</span>
+        </div>
+      )}
+      <div className="strategy-lane-list">
+        {lanes.map(lane=>{
+          const score = scan?.ranked?.find(r=>r.lane===lane)?.score??0;
+          const isChosen = chosenLane===lane;
+          const isBest = scan?.best===lane;
+          return (
+            <button key={lane}
+              className={`strategy-lane-btn${isChosen?' chosen':''}${isBest?' best':''}`}
+              onClick={()=>onChoose(lane)}>
+              <span className="sl-name">{LANE_LABELS[lane]||lane}</span>
+              <span className="sl-score">{score>0?'▲':score<0?'▼':'─'}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -531,6 +729,8 @@ export default function App() {
   const [selectedTile, setSelectedTile] = useState(null);
   const [simConfig, setSimConfig] = useState(null);
   const [debug, setDebug] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const [chosenLane, setChosenLane] = useState(null); // player's chosen strategy lane
   // Hover state: { tileKey } for cross-highlighting
   const [hoverKey, setHoverKey] = useState(null);
   // Tooltip state: { tile, discardInfo, x, y }
@@ -663,6 +863,7 @@ export default function App() {
           {' '}剩牌：<span>{wall?.length||0}</span>
         </span>
         <div style={{marginLeft:'auto',display:'flex',gap:8,alignItems:'center'}}>
+          <button className="btn btn-gray" style={{fontSize:'.72rem',padding:'3px 9px'}} onClick={()=>setShowRules(true)}>📖 規則</button>
           <button className={`btn ${debug?'btn-purple':'btn-gray'}`} style={{fontSize:'.72rem',padding:'3px 9px'}}
             onClick={()=>setDebug(d=>!d)}>{debug?'🔍 Debug 開':'🔍 Debug 關'}</button>
           <button className="btn btn-gray" onClick={()=>setScreen('setup')}>返回</button>
@@ -683,9 +884,9 @@ export default function App() {
 
       {/* Table */}
       <div className="table">
-        <OpponentPanel player={players[topPi]} hand={hands[topPi]} melds={melds[topPi]} discards={discards[topPi]} flowers={flowers[topPi]} seatWind={seatWinds[topPi]} isDealer={topPi===dealer} isTurn={topPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey}/>
-        <OpponentPanel player={players[leftPi]} hand={hands[leftPi]} melds={melds[leftPi]} discards={discards[leftPi]} flowers={flowers[leftPi]} seatWind={seatWinds[leftPi]} isDealer={leftPi===dealer} isTurn={leftPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey}/>
-        <OpponentPanel player={players[rightPi]} hand={hands[rightPi]} melds={melds[rightPi]} discards={discards[rightPi]} flowers={flowers[rightPi]} seatWind={seatWinds[rightPi]} isDealer={rightPi===dealer} isTurn={rightPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey}/>
+        <OpponentPanel player={players[topPi]} hand={hands[topPi]} melds={melds[topPi]} discards={discards[topPi]} flowers={flowers[topPi]} seatWind={seatWinds[topPi]} isDealer={topPi===dealer} isTurn={topPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey} seatIdx={topPi}/>
+        <OpponentPanel player={players[leftPi]} hand={hands[leftPi]} melds={melds[leftPi]} discards={discards[leftPi]} flowers={flowers[leftPi]} seatWind={seatWinds[leftPi]} isDealer={leftPi===dealer} isTurn={leftPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey} seatIdx={leftPi}/>
+        <OpponentPanel player={players[rightPi]} hand={hands[rightPi]} melds={melds[rightPi]} discards={discards[rightPi]} flowers={flowers[rightPi]} seatWind={seatWinds[rightPi]} isDealer={rightPi===dealer} isTurn={rightPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey} seatIdx={rightPi}/>
 
         <div className="center">
           <div className="discards-grid">
@@ -799,11 +1000,19 @@ export default function App() {
           {hint&&(
             <div className="hint-panel">
               <span className={`shanten-badge${hint.shanten===0?' tenpai':hint.shanten<0?' win':''}`}>{hint.msg}</span>
-              {hint.shanten===0&&<span style={{fontSize:'.72rem',color:'var(--dim)'}}>★ = 最佳打出 · ● = 可聽牌</span>}
-              {hint.shanten>0&&hint.discardAnalysis.filter(d=>d.isBestDiscard).length>0&&(
-                <span style={{fontSize:'.72rem',color:'var(--dim)'}}>
-                  ★ 建議打：{hint.discardAnalysis.filter(d=>d.isBestDiscard).map(d=>TILE_DISPLAY[d.tile.key]).join('、')}
+              {hint.shanten===0&&(
+                <span style={{fontSize:'.7rem',color:'var(--dim)'}}>
+                  <span style={{color:'var(--gold)'}}>★</span> 打出可聽牌
+                  {hint.tenpaiDetails.length>0&&<> · 等 <span style={{color:'#e74c3c'}}>{hint.totalRemaining}</span> 張</>}
                 </span>
+              )}
+              {hint.shanten===1&&(
+                <span style={{fontSize:'.7rem',color:'var(--dim)'}}>
+                  <span style={{color:'var(--gold)'}}>★</span> 打出可差1步 · 懸停牌查看詳情
+                </span>
+              )}
+              {hint.shanten>1&&(
+                <span style={{fontSize:'.7rem',color:'var(--dim)'}}>懸停各牌查看打出後變化</span>
               )}
               {hint.hints.map((h,i)=><span key={i} className="hint-tag">{h}</span>)}
             </div>
@@ -828,11 +1037,18 @@ export default function App() {
             </div>
           )}
 
+          {/* Strategy panel */}
+          <StrategyPanel
+            tiles={humanHand} melds={humanMelds}
+            seatWind={seatWinds[humanIdx]} roundWind={session.round}
+            minFan={session.minFan} chosenLane={chosenLane}
+            onChoose={setChosenLane}/>
           <TileTracker hand={humanHand} discards={discards} melds={melds} highlightKey={hoverKey}/>
         </div>
       </div>
 
-      {result&&phase==='finished'&&<WinOverlay result={result} players={players} dealer={dealer} onNext={handleNextHand}/>}
+      {result&&phase==='finished'&&<WinOverlay result={result} players={players} dealer={dealer} hands={hands} melds={melds} flowers={flowers} seatWinds={seatWinds} onNext={handleNextHand}/>}
+      {showRules&&<RulesTab onClose={()=>setShowRules(false)}/>}
     </div>
   );
 }

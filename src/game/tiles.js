@@ -264,13 +264,16 @@ export function calcFan(tiles, melds, winTile, isSelfDraw, seatWind, roundWind, 
   }
   if (melds.filter(m=>m.type==='kong').length===4) return { fan:99, patterns:['十八羅漢'] };
 
+  // 平糊 = all sequences (chows), no honours in hand, no triplet melds, concealed win possible
+  // In HK rules: 平糊 = 1 fan base. 雞糊 (chicken hand) = also 1 fan minimum but NO bonus label.
   const isPingHu = !isSevenPair && !isAllTriplets && !isPureFlush && !hasHonours &&
     melds.every(m=>m.type==='chi') && !allTiles.some(t=>isHonour(t));
 
-  if (fan === 0) fan = 1;
+  // Base fan is 0; minimum hand (雞糊) gets 1 at end if nothing else applies
+  // 平糊 gives 1 fan (is the hand type, not an addon)
+  if (isPingHu) { fan = Math.max(fan, 1); patterns.push('平糊'); }
 
   if (isSelfDraw) { fan+=1; patterns.push('自摸'); }
-  if (isPingHu) { fan+=1; patterns.push('平胡'); }
   if (!flowers || flowers.length===0) { fan+=1; patterns.push('無花'); }
 
   if (flowers) {
@@ -296,7 +299,15 @@ export function calcFan(tiles, melds, winTile, isSelfDraw, seatWind, roundWind, 
       fan+=1; patterns.push(`${TILE_DISPLAY[dk]}刻`);
     }
   }
-  if (!patterns.length || patterns.every(p=>['自摸','平胡','無花'].includes(p))) patterns.unshift('雞胡');
+  // If still 0 fan and no pattern set, it's a 雞糊 (chicken hand) = 1 fan minimum
+  if (fan === 0 || (!patterns.length || patterns.every(p=>['自摸','無花','平糊'].includes(p) && !patterns.includes('平糊')))) {
+    if (!patterns.includes('平糊') && !patterns.includes('自摸') && !patterns.includes('無花')) {
+      if (fan === 0) { fan = 1; patterns.unshift('雞糊'); }
+    } else if (fan === 0) {
+      fan = 1; // minimum
+    }
+  }
+  if (fan === 0) { fan = 1; patterns.unshift('雞糊'); }
   return { fan, patterns };
 }
 
