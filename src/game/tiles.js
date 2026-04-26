@@ -86,18 +86,15 @@ export function calcShanten(tiles) {
   if (tiles.length === 0) return 8;
   const cnt = countKey(tiles);
 
-  // Seven pairs
-  const pairs = Object.values(cnt).filter(v => v >= 2).length;
-  const shantenPairs = 6 - pairs;
-
-  // Thirteen orphans
+  // Thirteen orphans (十三么 — valid in HK mahjong)
   const orphanKeys = ['man1','man9','pin1','pin9','sou1','sou9','east','south','west','north','chun','hatsu','haku'];
   const hasOrphan = orphanKeys.filter(k => cnt[k]);
   const hasPairAmongOrphans = hasOrphan.some(k => cnt[k] >= 2);
   const shantenOrphan = 13 - hasOrphan.length - (hasPairAmongOrphans ? 1 : 0);
 
+  // Standard hand (七對子 is NOT valid in HK mahjong — removed)
   const shantenStd = calcShantenStandard(tiles);
-  return Math.min(shantenPairs, shantenStd, shantenOrphan);
+  return Math.min(shantenStd, shantenOrphan);
 }
 
 function calcShantenStandard(tiles) {
@@ -165,7 +162,7 @@ export function checkWin(tiles, melds = []) {
   const meldTiles = melds.reduce((s, m) => s + (m.type === 'kong' ? 4 : 3), 0);
   const needed = 14 - meldTiles;
   if (tiles.length !== needed) return false;
-  if (melds.length === 0 && isSevenPairs(tiles)) return true;
+  // Note: 七對子 is NOT valid in Hong Kong Mahjong
   if (melds.length === 0 && isThirteenOrphans(tiles)) return true;
   return canFormStandard(tiles, melds.length);
 }
@@ -235,8 +232,8 @@ export function calcFan(tiles, melds, winTile, isSelfDraw, seatWind, roundWind, 
   let fan = 0;
 
   if (melds.length === 0 && isThirteenOrphans(tiles)) return { fan: 99, patterns: ['十三么'] };
-  const isSevenPair = melds.length === 0 && isSevenPairs(tiles);
-  const isAllTriplets = !isSevenPair && checkAllTriplets(tiles, melds);
+  // 七對子 is NOT a valid hand in HK Mahjong
+  const isAllTriplets = checkAllTriplets(tiles, melds);
   const isKanKan = isAllTriplets && !melds.some(m=>m.type==='chi') && isSelfDraw;
   if (isKanKan) { fan = Math.max(fan, 7); patterns.push('坎坎胡'); }
   else if (isAllTriplets) { fan = Math.max(fan, 3); patterns.push('對對胡'); }
@@ -418,8 +415,7 @@ export function analyzeHand(tiles, melds, allSeenTiles = []) {
   // Pattern hints
   const hints = [];
   const cnt = countKey(tiles);
-  const pairs = Object.values(cnt).filter(v=>v>=2).length;
-  if (pairs >= 4) hints.push('七對子');
+  // 七對子 removed — not valid in HK Mahjong
   if (melds.every(m=>m.type!=='chi') && Object.values(cnt).filter(v=>v>=3).length>=2) hints.push('對對胡');
   for (const dk of DRAGONS) if (cnt[dk]>=2) hints.push(`${TILE_DISPLAY[dk]}對`);
   const suitTiles = tiles.filter(t=>isSuit(t));

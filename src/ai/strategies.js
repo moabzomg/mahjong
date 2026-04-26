@@ -311,13 +311,14 @@ export function aiWantsPong(tile, hand, melds, strategy='balanced', seatWind=0, 
     case 'orphan':
       return false;
 
-    default: // balanced, speed
-      // Pong dragons/winds always
+    default: // balanced
+      // Always pong honours (字牌) — they're slow to build any other way
       if (DRAGONS.includes(key)) return true;
-      if (key===WINDS[seatWind]||key===WINDS[roundWind]) return true;
-      // Pong suited tiles if it reduces shanten
+      if (WINDS.includes(key)) return true; // pong ANY wind, not just seat/round
+      // Pong suited tiles if it reduces shanten by 1
       const cnt = countByKey(hand);
-      if (cnt[key]>=2 && calcShanten([...hand, tile]) < calcShanten(hand)) return true;
+      const shanBefore = calcShanten(hand);
+      if (cnt[key]>=2 && calcShanten([...hand.filter(t=>t.key!==key).slice(0,hand.length-2), tile]) < shanBefore) return true;
       return false;
   }
 }
@@ -369,25 +370,30 @@ export function scanBestLane(tiles, melds, seatWind, roundWind, minFan = 3) {
   const maxSuit = Math.max(...Object.values(suitCt));
   scores['flush'] = maxSuit * 15 - 50;
 
+  // Half flush: one suit + honours
+  const honourCt = tiles.filter(t=>!Object.keys(suitCt).some(s=>t.key.startsWith(s)&&/\d$/.test(t.key))).length;
+  scores['halfFlush'] = maxSuit>=5&&honourCt>=2 ? maxSuit*10 + honourCt*8 - 40 : -99;
+
+  // 平糊 + 門前清: all chows, no honours, concealed
+  const hasHonourTile = tiles.some(t=>['east','south','west','north','chun','hatsu','haku'].includes(t.key));
+  const noPairs = pairCt <= 1;
+  scores['pingHu'] = !hasHonourTile && noPairs ? 40 : -20;
+
   // Value tiles (dragons/winds)
   const DRAG = ['chun','hatsu','haku'];
   const WIND4 = ['east','south','west','north'];
   const dragonPairs = DRAG.filter(k=>cnt[k]>=2).length;
   const dragonTrips = DRAG.filter(k=>cnt[k]>=3).length;
-  scores['value'] = dragonPairs * 20 + dragonTrips * 40 + ((cnt[WIND4[seatWind]]||0)>=2?25:0);
   scores['dragon'] = dragonPairs * 30 + dragonTrips * 60;
   scores['winds'] = WIND4.filter(k=>cnt[k]>=2).length * 25 + WIND4.filter(k=>cnt[k]>=3).length * 40;
 
-  // Speed (shanten-based — import calcShanten)
-  scores['speed'] = 50 - (pairCt + tripletCt) * 5; // simple heuristic
-
-  // Seven pairs
-  scores['sevenPairs'] = pairCt * 25 - 50;
-
   // Rank all lanes
-  const ranked = Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  // Filter to only valid HK lanes
+  const validLanes = ['flush','halfFlush','triplet','pingHu','dragon','winds','orphan','defensive'];
+  const filteredScores = Object.fromEntries(Object.entries(scores).filter(([k])=>validLanes.includes(k)));
+  const ranked = Object.entries(filteredScores).sort((a,b)=>b[1]-a[1]);
   return {
-    best: ranked[0][0],
+    best: ranked[0]?.[0] || 'pingHu',
     ranked: ranked.map(([lane, score]) => ({ lane, score: Math.round(score) })),
     details: {
       orphanHave, pairCt, tripletCt, maxSuit,
@@ -398,7 +404,12 @@ export function scanBestLane(tiles, melds, seatWind, roundWind, minFan = 3) {
 }
 
 export const LANE_LABELS = {
-  flush: '清一色', triplet: '對對胡', value: '役牌', dragon: '大三元',
-  winds: '大四喜', orphan: '十三么', speed: '速攻', sevenPairs: '七對子',
-  balanced: '均衡', defensive: '保守',
+  flush:     '清一色',
+  halfFlush: '混一色',
+  triplet:   '對對胡',
+  pingHu:    '平糊+門前',
+  dragon:    '大三元',
+  winds:     '大四喜',
+  orphan:    '十三么',
+  defensive: '保守',
 };

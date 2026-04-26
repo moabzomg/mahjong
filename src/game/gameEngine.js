@@ -429,6 +429,7 @@ function executeChi(state, p, meldTiles, claimedTile) {
   const chiStr = sortedMeld.map(t => TILE_DISPLAY[t.key]).join('');
   return {
     ...state, hands, melds, currentPlayer:p, phase:'discard', claimPending:null,
+    lastClaimPlayer: p, lastClaimType: 'chi',
     log:[...state.log, `${state.session.players[p].name} 上 ${chiStr}！`],
   };
 }
