@@ -284,16 +284,22 @@ function executePong(state, p, meldTiles) {
     currentPlayer: p,
     phase: 'discard',
     claimPending: null,
-    log: [...state.log, `${state.session.players[p].name} 碰 ${TILE_DISPLAY[meld.tiles[0]?.key]||''}！`],
+    log: [...state.log, `${state.session.players[p].name} 碰 ${TILE_DISPLAY[meld.tiles[0]?.key]||meld.tiles[0]?.key||''}！`],
   };
 }
 
-function executeChi(state, p, meldTiles, drawnTile) {
-  const meld = { type: 'chi', tiles: sortHand(meldTiles) };
-  const meldIds = meldTiles.filter(t => t.id !== drawnTile.id).map(t => t.id);
-  const newHand = state.hands[p].filter(t => !meldIds.includes(t.id));
+function executeChi(state, p, meldTiles, claimedTile) {
+  // meldTiles includes the claimed discard tile + 2 hand tiles
+  const sortedMeld = sortHand(meldTiles);
+  const meld = { type: 'chi', tiles: sortedMeld };
+  // Remove only the 2 tiles that come from hand (not the claimed discard tile)
+  const handTileIds = new Set(
+    meldTiles.filter(t => t.id !== claimedTile.id).map(t => t.id)
+  );
+  const newHand = state.hands[p].filter(t => !handTileIds.has(t.id));
   const hands = state.hands.map((h, i) => i === p ? sortHand(newHand) : h);
   const melds = state.melds.map((m, i) => i === p ? [...m, meld] : m);
+  const chiStr = sortedMeld.map(t => TILE_DISPLAY[t.key]||t.key).join('');
   return {
     ...state,
     hands,
@@ -301,7 +307,7 @@ function executeChi(state, p, meldTiles, drawnTile) {
     currentPlayer: p,
     phase: 'discard',
     claimPending: null,
-    log: [...state.log, `${state.session.players[p].name} 上！`],
+    log: [...state.log, `${state.session.players[p].name} 上 ${chiStr}！`],
   };
 }
 
@@ -475,8 +481,12 @@ export function runOneGame(players, minFan = 3) {
             break;
           }
         }
-        const strategy = players[p].strategy || 'nash';
-        const discard = aiDiscard(state.hands[p], state.melds[p], strategy);
+        const strategy = players[p].strategy || 'balanced';
+        const discard = aiDiscard(
+          state.hands[p], state.melds[p], strategy,
+          state.seatWinds[p], session.round, session.minFan,
+          state, state.turnCount || 0
+        );
         state = doDiscard(state, p, discard.id);
         continue;
       }

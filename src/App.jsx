@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import './index.css';
 import {
   SUITS, HONOURS, WINDS, FLOWERS, TILE_EMOJI, TILE_DISPLAY,
-  sortHand, analyzeHand, calcFan, fanToPoints
+  sortHand, analyzeHand, calcFan, fanToPoints, isSuit, isHonour,
 } from './game/tiles.js';
 import {
   createSession, startHand, drawTile, doDiscard,
@@ -16,151 +16,252 @@ const WIND_LABELS = ['東','南','西','北'];
 const FLOWER_NAMES = { plum:'梅',orchid:'蘭',chrysanthemum:'菊',bamboo:'竹',spring:'春',summer:'夏',autumn:'秋',winter:'冬' };
 const SUIT_LABEL = { man:'萬', pin:'筒', sou:'索' };
 
-// ─── Tile Component ───────────────────────────────────────────────────────────
-// ─── Tile SVG art ─────────────────────────────────────────────────────────────
-// Dot layouts for 筒 (circles)
-const PIN_DOTS = {
+// ─── Tile SVG art — traditional HK Mahjong layouts ──────────────────────────
+const CN_NUM = ['一','二','三','四','五','六','七','八','九'];
+const HONOUR_COLOR = { east:'#1a6ea8',south:'#c0392b',west:'#27ae60',north:'#1a1a1a',chun:'#c0392b',hatsu:'#27ae60',haku:'#1a1a1a' };
+const FLOWER_COLOR = { plum:'#c0392b',orchid:'#8e44ad',chrysanthemum:'#d35400',bamboo:'#27ae60',spring:'#27ae60',summer:'#d35400',autumn:'#c0392b',winter:'#2980b9' };
+
+// Traditional 筒 dot colours per tile number (matches real HK tiles)
+// 1=red, 2=blue/green, 3=red, 4=blue, 5=mixed, 6=blue, 7=red, 8=blue, 9=tri-colour
+const PIN_DOT_COLORS = {
+  1:  () => ['#c0392b'],
+  2:  () => ['#1a6ea8','#27ae60'],
+  3:  () => ['#c0392b','#1a6ea8','#27ae60'],
+  4:  () => ['#1a6ea8','#1a6ea8','#27ae60','#27ae60'],
+  5:  () => ['#1a6ea8','#27ae60','#c0392b','#1a6ea8','#27ae60'],
+  6:  () => ['#1a6ea8','#1a6ea8','#27ae60','#27ae60','#c0392b','#c0392b'],
+  7:  () => ['#1a6ea8','#27ae60','#1a6ea8','#27ae60','#c0392b','#c0392b','#1a6ea8'],
+  8:  () => ['#1a6ea8','#1a6ea8','#27ae60','#27ae60','#c0392b','#c0392b','#1a6ea8','#27ae60'],
+  9:  () => ['#c0392b','#1a6ea8','#27ae60','#c0392b','#1a6ea8','#27ae60','#c0392b','#1a6ea8','#27ae60'],
+};
+
+// Traditional dot positions — standard mahjong layout
+const PIN_POSITIONS = {
   1: [[50,50]],
   2: [[50,30],[50,70]],
-  3: [[50,20],[50,50],[50,80]],
-  4: [[30,30],[70,30],[30,70],[70,70]],
-  5: [[30,28],[70,28],[50,50],[30,72],[70,72]],
-  6: [[30,25],[70,25],[30,50],[70,50],[30,75],[70,75]],
-  7: [[30,22],[70,22],[30,48],[70,48],[30,72],[70,72],[50,35]],
-  8: [[25,22],[50,22],[75,22],[25,50],[75,50],[25,78],[50,78],[75,78]],
-  9: [[25,20],[50,20],[75,20],[25,50],[50,50],[75,50],[25,80],[50,80],[75,80]],
-};
-// Bamboo stick layouts for 索
-const SOU_STICKS = {
-  1: [[50,50,28]],  // [cx, cy, r]
-  2: [[50,28],[50,72]],
-  3: [[50,20],[50,50],[50,80]],
-  4: [[32,28],[68,28],[32,72],[68,72]],
-  5: [[32,22],[68,22],[50,50],[32,78],[68,78]],
-  6: [[32,22],[68,22],[32,50],[68,50],[32,78],[68,78]],
-  7: [[32,18],[68,18],[32,44],[68,44],[32,68],[68,68],[50,82]],
-  8: [[25,20],[50,20],[75,20],[25,50],[75,50],[25,78],[50,78],[75,78]],
-  9: [[25,18],[50,18],[75,18],[25,50],[50,50],[75,50],[25,82],[50,82],[75,82]],
+  3: [[50,22],[50,50],[50,78]],
+  4: [[31,30],[69,30],[31,70],[69,70]],
+  5: [[31,27],[69,27],[50,50],[31,73],[69,73]],
+  6: [[31,24],[69,24],[31,50],[69,50],[31,76],[69,76]],
+  7: [[31,21],[69,21],[31,47],[69,47],[31,71],[69,71],[50,84]],
+  8: [[25,21],[50,21],[75,21],[25,50],[75,50],[25,79],[50,79],[75,79]],
+  9: [[25,19],[50,19],[75,19],[25,50],[50,50],[75,50],[25,81],[50,81],[75,81]],
 };
 
-const DOT_R_FULL = 9.5;
-const DOT_R_SMALL = 6;
+// Dot sizes: outer ring + inner fill
+function PinDot({ cx, cy, r, color }) {
+  const ringR = r * 0.38;
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={r} fill="#e8e0c0" stroke={color} strokeWidth={r*0.22}/>
+      <circle cx={cx} cy={cy} r={ringR} fill={color}/>
+      <circle cx={cx - r*0.22} cy={cy - r*0.22} r={ringR*0.35} fill="rgba(255,255,255,0.55)"/>
+    </g>
+  );
+}
 
-function PinFace({ n, isSmall, inDiscard }) {
-  const dots = PIN_DOTS[n] || [];
-  const r = isSmall ? DOT_R_SMALL : DOT_R_FULL;
-  const color = inDiscard ? '#1a5ea8' : '#1a5ea8';
-  const ringColor = inDiscard ? '#0a3060' : '#0d3d78';
+function PinFace({ n, isSmall }) {
+  const positions = PIN_POSITIONS[n] || [];
+  const colors = PIN_DOT_COLORS[n] ? PIN_DOT_COLORS[n]() : [];
+  const r = isSmall ? 8.5 : 10.5;
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-      {dots.map(([cx,cy], i) => (
-        <g key={i}>
-          <circle cx={cx} cy={cy} r={r+1.5} fill={ringColor}/>
-          <circle cx={cx} cy={cy} r={r} fill={color}/>
-          <circle cx={cx-r*0.3} cy={cy-r*0.3} r={r*0.28} fill="rgba(255,255,255,0.35)"/>
-        </g>
+      {positions.map(([cx,cy],i) => (
+        <PinDot key={i} cx={cx} cy={cy} r={r} color={colors[i] || colors[0] || '#1a6ea8'}/>
       ))}
     </svg>
   );
 }
 
-function SouFace({ n, isSmall, inDiscard }) {
+// Traditional 索 bamboo — each stick = tapered green bamboo with node rings
+// Sou-1 is a special peacock/bird tile
+const SOU_POSITIONS = {
+  // single column
+  2: [[50,30],[50,70]],
+  3: [[50,21],[50,50],[50,79]],
+  // two columns
+  4: [[34,30],[66,30],[34,70],[66,70]],
+  5: [[34,26],[66,26],[50,50],[34,74],[66,74]],
+  6: [[34,23],[66,23],[34,50],[66,50],[34,77],[66,77]],
+  7: [[34,19],[66,19],[34,45],[66,45],[34,69],[66,69],[50,83]],
+  8: [[26,19],[50,19],[74,19],[26,50],[74,50],[26,81],[50,81],[74,81]],
+  9: [[26,17],[50,17],[74,17],[26,50],[50,50],[74,50],[26,83],[50,83],[74,83]],
+};
+
+// Traditional bamboo stick colours: alternating green/red pattern
+// Each entry is [stickColor, nodeColor]
+const SOUColors = [
+  ['#2e8b3a','#1a5a22'], // green
+  ['#c0392b','#8a1a0a'], // red (1st of each column usually red)
+  ['#2e8b3a','#1a5a22'],
+  ['#2e8b3a','#1a5a22'],
+  ['#c0392b','#8a1a0a'],
+  ['#2e8b3a','#1a5a22'],
+  ['#2e8b3a','#1a5a22'],
+  ['#c0392b','#8a1a0a'],
+  ['#2e8b3a','#1a5a22'],
+];
+
+function BambooStick({ cx, cy, w, h, stickColor, nodeColor }) {
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      {/* Main bamboo body */}
+      <rect x={-w/2} y={-h/2} width={w} height={h} rx={w*0.45}
+        fill={stickColor}/>
+      {/* Node ring at center */}
+      <rect x={-w/2-1} y={-1.5} width={w+2} height={3} rx={1.5}
+        fill={nodeColor}/>
+      {/* Highlight */}
+      <rect x={-w/2+1.2} y={-h/2+2} width={w*0.28} height={h-4} rx={1}
+        fill="rgba(255,255,255,0.28)"/>
+    </g>
+  );
+}
+
+function SouFace({ n, isSmall }) {
+  const sw = isSmall ? 7 : 10;
+  const sh = isSmall ? 18 : 26;
+
   if (n === 1) {
-    // Sou 1 = green circle (special)
+    // Sou-1: traditional peacock/bird on a bamboo branch
     return (
       <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-        <circle cx={50} cy={50} r={32} fill="#1a7a3c" stroke="#0d4020" strokeWidth={3}/>
-        <circle cx={38} cy={38} r={10} fill="rgba(255,255,255,0.25)"/>
+        {/* Branch */}
+        <line x1={30} y1={75} x2={70} y2={65} stroke="#5a3a10" strokeWidth={3} strokeLinecap="round"/>
+        <line x1={50} y1={70} x2={50} y2={82} stroke="#5a3a10" strokeWidth={3} strokeLinecap="round"/>
+        {/* Bird body */}
+        <ellipse cx={50} cy={52} rx={16} ry={12} fill="#c0392b"/>
+        {/* Wing */}
+        <ellipse cx={42} cy={54} rx={10} ry={7} fill="#27ae60" transform="rotate(-15,42,54)"/>
+        {/* Head */}
+        <circle cx={62} cy={46} r={9} fill="#c0392b"/>
+        {/* Eye */}
+        <circle cx={65} cy={44} r={2.5} fill="white"/>
+        <circle cx={65.8} cy={44} r={1.2} fill="#1a1a1a"/>
+        {/* Beak */}
+        <polygon points="70,46 76,44 70,48" fill="#d4a020"/>
+        {/* Tail feathers */}
+        <path d="M34,56 Q18,40 20,28" stroke="#27ae60" strokeWidth={3} fill="none" strokeLinecap="round"/>
+        <path d="M34,58 Q14,50 12,40" stroke="#2980b9" strokeWidth={2.5} fill="none" strokeLinecap="round"/>
+        <path d="M34,60 Q16,62 18,52" stroke="#c0392b" strokeWidth={2.5} fill="none" strokeLinecap="round"/>
       </svg>
     );
   }
-  const sticks = SOU_STICKS[n] || [];
-  const w = isSmall ? 6 : 9, h = isSmall ? 18 : 26;
-  const colors = ['#c0392b','#27ae60','#27ae60','#27ae60','#27ae60','#27ae60','#27ae60','#27ae60','#27ae60'];
+
+  const positions = SOU_POSITIONS[n] || [];
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-      {sticks.map(([cx,cy], i) => (
-        <g key={i} transform={`translate(${cx},${cy})`}>
-          <rect x={-w/2} y={-h/2} width={w} height={h} rx={w/2} fill={i===0&&n>1?colors[0]:colors[i]}/>
-          <rect x={-w/2+1.5} y={-h/2+2} width={2} height={h-4} rx={1} fill="rgba(255,255,255,0.3)"/>
-        </g>
-      ))}
+      {positions.map(([cx,cy],i) => {
+        const [stickColor, nodeColor] = SOUColors[i % SOUColors.length];
+        return <BambooStick key={i} cx={cx} cy={cy} w={sw} h={sh} stickColor={stickColor} nodeColor={nodeColor}/>;
+      })}
     </svg>
   );
 }
 
-// 萬 uses large red numeral + 萬 character
 function ManFace({ n, isSmall }) {
-  const CHINESE_NUM = ['一','二','三','四','五','六','七','八','九'];
   return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:0}}>
-      <span style={{fontSize:isSmall?'0.85em':'1.3em',fontWeight:800,color:'#c0392b',lineHeight:1}}>{CHINESE_NUM[n-1]}</span>
-      <span style={{fontSize:isSmall?'0.55em':'0.75em',color:'#7a3010',fontWeight:700,lineHeight:1}}>萬</span>
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:0,lineHeight:1}}>
+      <span style={{fontSize:isSmall?'.82em':'1.28em',fontWeight:800,color:'#c0392b'}}>{CN_NUM[n-1]}</span>
+      <span style={{fontSize:isSmall?'.48em':'.72em',color:'#7a2a00',fontWeight:700}}>萬</span>
     </div>
   );
 }
-
-// Honour tile face
-const HONOUR_COLORS = { east:'#1a6ea8',south:'#c0392b',west:'#27ae60',north:'#2c2c2c',chun:'#c0392b',hatsu:'#27ae60',haku:'#2c2c2c' };
 function HonourFace({ tkey, isSmall }) {
-  const ch = TILE_DISPLAY[tkey] || tkey;
-  const color = HONOUR_COLORS[tkey] || '#333';
   return (
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
-      <span style={{fontSize:isSmall?'0.9em':'1.4em',fontWeight:900,color,lineHeight:1}}>{ch}</span>
+      <span style={{fontSize:isSmall?'.9em':'1.5em',fontWeight:900,color:HONOUR_COLOR[tkey]||'#333',lineHeight:1}}>{TILE_DISPLAY[tkey]||tkey}</span>
     </div>
   );
 }
-
-// Flower face
-const FLOWER_COLORS_MAP = { plum:'#c0392b',orchid:'#8e44ad',chrysanthemum:'#e67e22',bamboo:'#27ae60',spring:'#27ae60',summer:'#e67e22',autumn:'#c0392b',winter:'#2980b9' };
-const FLOWER_EMOJI_MAP = { plum:'梅',orchid:'蘭',chrysanthemum:'菊',bamboo:'竹',spring:'春',summer:'夏',autumn:'秋',winter:'冬' };
 function FlowerFace({ tkey, isSmall }) {
-  const color = FLOWER_COLORS_MAP[tkey] || '#888';
-  const ch = FLOWER_EMOJI_MAP[tkey] || '花';
   return (
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
-      <span style={{fontSize:isSmall?'0.8em':'1.1em',fontWeight:900,color,lineHeight:1}}>{ch}</span>
+      <span style={{fontSize:isSmall?'.78em':'1.05em',fontWeight:900,color:FLOWER_COLOR[tkey]||'#888',lineHeight:1}}>{FLOWER_NAMES[tkey]||tkey}</span>
     </div>
   );
 }
-
-function TileFace({ tkey, isSmall, inDiscard }) {
-  // Suit tiles
+function TileFace({ tkey, isSmall }) {
   for (const s of SUITS) {
     if (tkey.startsWith(s) && /\d$/.test(tkey)) {
       const n = parseInt(tkey.slice(s.length));
       if (s==='man') return <ManFace n={n} isSmall={isSmall}/>;
-      if (s==='pin') return <PinFace n={n} isSmall={isSmall} inDiscard={inDiscard}/>;
-      if (s==='sou') return <SouFace n={n} isSmall={isSmall} inDiscard={inDiscard}/>;
+      if (s==='pin') return <PinFace n={n} isSmall={isSmall}/>;
+      if (s==='sou') return <SouFace n={n} isSmall={isSmall}/>;
     }
   }
   if (FLOWERS.includes(tkey)) return <FlowerFace tkey={tkey} isSmall={isSmall}/>;
   return <HonourFace tkey={tkey} isSmall={isSmall}/>;
 }
 
-function Tile({ tile, selected, drawn, small, inDiscard, onClick }) {
-  const cn = ['mj-tile', small&&'small', selected&&'sel', drawn&&'drawn', inDiscard&&'in-discard'].filter(Boolean).join(' ');
+// ─── Tile Component ───────────────────────────────────────────────────────────
+function Tile({ tile, selected, drawn, small, inDiscard, highlighted, dimmed, hint, hintBest, onClick, onMouseEnter, onMouseLeave }) {
+  const cn = [
+    'mj-tile',
+    small&&'small',
+    selected&&'sel',
+    drawn&&'drawn',
+    inDiscard&&'in-discard',
+    highlighted&&'highlighted',
+    dimmed&&'dimmed',
+    hint&&'hint-tile',
+    hintBest&&'hint-best',
+  ].filter(Boolean).join(' ');
   return (
-    <div className={cn} onClick={onClick} title={TILE_DISPLAY[tile.key] || tile.key}>
-      <TileFace tkey={tile.key} isSmall={small} inDiscard={inDiscard}/>
+    <div className={cn} onClick={onClick} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
+      title={TILE_DISPLAY[tile.key]||tile.key}>
+      <TileFace tkey={tile.key} isSmall={small}/>
+      {hintBest && <div className="hint-crown">★</div>}
+      {hint && !hintBest && <div className="hint-dot"/>}
     </div>
   );
 }
-
 function TileBack({ small }) {
   return (
     <div className={`mj-tile back${small?' small':''}`}>
-      <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block',opacity:0.3}}>
+      <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block',opacity:.28}}>
         <rect x={10} y={10} width={80} height={80} rx={6} fill="none" stroke="#c8973a" strokeWidth={3}/>
         <rect x={20} y={20} width={60} height={60} rx={4} fill="none" stroke="#c8973a" strokeWidth={1.5}/>
+        <line x1={10} y1={10} x2={90} y2={90} stroke="#c8973a" strokeWidth={1} opacity={.4}/>
+        <line x1={90} y1={10} x2={10} y2={90} stroke="#c8973a" strokeWidth={1} opacity={.4}/>
       </svg>
     </div>
   );
 }
 
+// ─── Tenpai Tooltip ───────────────────────────────────────────────────────────
+function TenpaiTooltip({ discardInfo, visible }) {
+  if (!visible || !discardInfo) return null;
+  const { shantenAfter, tenpai, leadsToTenpai } = discardInfo;
+  if (!leadsToTenpai) {
+    return (
+      <div className="tenpai-tooltip">
+        <div className="tt-title">打出後</div>
+        <div className="tt-shanten">差 {shantenAfter} 步聽牌</div>
+      </div>
+    );
+  }
+  const total = tenpai.reduce((s,d)=>s+d.remaining,0);
+  return (
+    <div className="tenpai-tooltip">
+      <div className="tt-title">聽牌！共 <span className="tt-total">{total}</span> 張</div>
+      <div className="tt-wins">
+        {tenpai.map(d=>(
+          <div key={d.key} className={`tt-win-tile ${d.remaining===0?'tt-dead':''}`}>
+            <div className="tt-win-face">
+              <TileFace tkey={d.key} isSmall/>
+            </div>
+            <span className="tt-win-name">{TILE_DISPLAY[d.key]}</span>
+            <span className="tt-win-cnt">{d.remaining}張</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Tile Tracker ─────────────────────────────────────────────────────────────
-function TileTracker({ hand, discards, melds }) {
+function TileTracker({ hand, discards, melds, highlightKey }) {
   const seen = {};
   const count = t => { seen[t.key]=(seen[t.key]||0)+1; };
   hand.forEach(count);
@@ -179,9 +280,12 @@ function TileTracker({ hand, discards, melds }) {
           <span className="tracker-slbl">{row.label}</span>
           {row.tiles.map(key=>{
             const r=rem(key);
+            const isHl = highlightKey===key;
             return (
-              <div key={key} className={`tracker-tile av-${r}`} title={`${TILE_DISPLAY[key]} 餘${r}張`}>
-                <span className="tsym">{TILE_EMOJI[key]||TILE_DISPLAY[key]}</span>
+              <div key={key} className={`tracker-tile av-${r}${isHl?' tracker-hl':''}`}
+                title={`${TILE_DISPLAY[key]} 餘${r}張`}
+                style={{position:'relative', overflow:'visible'}}>
+                <TileFace tkey={key} isSmall/>
                 <span className="tcnt">{r}</span>
               </div>
             );
@@ -206,25 +310,20 @@ function FlowerRow({ flowers }) {
 }
 
 // ─── Opponent Panel ───────────────────────────────────────────────────────────
-function OpponentPanel({ player, hand, melds, discards, flowers, seatWind, isDealer, isTurn, debug }) {
+function OpponentPanel({ player, hand, melds, discards, flowers, seatWind, isDealer, isTurn, debug, highlightKey }) {
   return (
     <div className="aip">
       <div className="opp-name">
         <span className="badge badge-wind">{WIND_LABELS[seatWind]}</span>
-        {isDealer && <span className="badge badge-dealer">莊</span>}
-        {isTurn && <span className="badge badge-turn">●</span>}
+        {isDealer&&<span className="badge badge-dealer">莊</span>}
+        {isTurn&&<span className="badge badge-turn">●</span>}
         <span>{player.name}</span>
         <span className="opp-remain">{hand.length}張</span>
-        {flowers?.length>0 && (
-          <div className="flower-row" style={{marginLeft:0}}>
-            {flowers.map(f=>{
-              const isRed=FLOWERS.indexOf(f.key)>=4;
-              return <span key={f.id} className={`flower-badge ${isRed?'red':'green'}`} style={{fontSize:'0.6rem'}}>{FLOWER_NAMES[f.key]}</span>;
-            })}
-          </div>
-        )}
+        {flowers?.length>0&&<div className="flower-row" style={{marginLeft:0}}>
+          {flowers.map(f=>{const isRed=FLOWERS.indexOf(f.key)>=4;return <span key={f.id} className={`flower-badge ${isRed?'red':'green'}`} style={{fontSize:'.6rem'}}>{FLOWER_NAMES[f.key]}</span>;})}
+        </div>}
       </div>
-      {melds.length>0 && (
+      {melds.length>0&&(
         <div className="melds-row">
           {melds.map((m,i)=>(
             <div key={i} className="meld-group">
@@ -236,12 +335,12 @@ function OpponentPanel({ player, hand, melds, discards, flowers, seatWind, isDea
       )}
       <div className="opp-tiles">
         {debug
-          ? hand.map(t=><Tile key={t.id} tile={t} small/>)
+          ? hand.map(t=><Tile key={t.id} tile={t} small highlighted={highlightKey===t.key}/>)
           : hand.map((_,i)=><TileBack key={i} small/>)
         }
       </div>
       <div className="opp-discards">
-        {discards.map(t=><Tile key={t.id} tile={t} small inDiscard/>)}
+        {discards.map(t=><Tile key={t.id} tile={t} small inDiscard highlighted={highlightKey===t.key}/>)}
       </div>
     </div>
   );
@@ -259,18 +358,15 @@ function ClaimPrompt({ claimPending, players, onWin, onPong, onChi, onPass }) {
     <div className="claim-prompt">
       <h3>選擇操作</h3>
       <div style={{display:'flex',alignItems:'center',gap:6}}>
-        <span style={{fontSize:'0.75rem',color:'var(--dim)'}}>打出：</span>
+        <span style={{fontSize:'.75rem',color:'var(--dim)'}}>打出：</span>
         <Tile tile={tile}/>
       </div>
       <div className="claim-btns">
-        {winClaim && <button className="claim-btn win" onClick={onWin}>胡！{winClaim.fan}番</button>}
-        {canPong && <button className="claim-btn pong" onClick={onPong}>碰</button>}
+        {winClaim&&<button className="claim-btn win" onClick={onWin}>胡！{winClaim.fan}番</button>}
+        {canPong&&<button className="claim-btn pong" onClick={onPong}>碰</button>}
         {chiOpts.map((c,i)=>(
           <button key={i} className="claim-btn chi" onClick={()=>onChi(c.tiles)}>
-            上 {c.tiles.sort((a,b)=>{
-              const n=t=>parseInt(t.key.replace(/[^0-9]/g,''))||0;
-              return n(a)-n(b);
-            }).map(t=>TILE_DISPLAY[t.key]).join('')}
+            上 {sortHand(c.tiles).map(t=>TILE_DISPLAY[t.key]).join('')}
           </button>
         ))}
         <button className="claim-btn pass" onClick={onPass}>過</button>
@@ -303,7 +399,7 @@ function WinOverlay({ result, players, dealer, onNext }) {
         <div className="win-patterns">
           {result.patterns?.map((p,i)=><span key={i} className="pattern-tag">{p}</span>)}
         </div>
-        <div className="win-fan">{result.fan} 番</div>
+        <div className="win-fan">{result.fan>=99?'爆棚':result.fan+' 番'}</div>
         <div className="win-pts">{result.points} 點 / 人</div>
         <div className={`win-dealer-badge ${isDealerWin?'lim':'pass'}`}>
           {isDealerWin?'冧莊（莊家連莊）':'過莊（換莊）'}
@@ -317,12 +413,11 @@ function WinOverlay({ result, players, dealer, onNext }) {
 
 // ─── Setup Screen ─────────────────────────────────────────────────────────────
 const DEFAULT_PLAYERS = [
-  { name:'你',   isHuman:true,  strategy:'nash' },
-  { name:'阿明', isHuman:false, strategy:'aggressive' },
-  { name:'阿珍', isHuman:false, strategy:'defensive' },
-  { name:'阿強', isHuman:false, strategy:'nash' },
+  { name:'你',   isHuman:true,  strategy:'balanced' },
+  { name:'阿明', isHuman:false, strategy:'flush' },
+  { name:'阿珍', isHuman:false, strategy:'value' },
+  { name:'阿強', isHuman:false, strategy:'balanced' },
 ];
-
 function SetupScreen({ onStart, onSimulate }) {
   const [players, setPlayers] = useState(DEFAULT_PLAYERS.map(p=>({...p})));
   const [minFan, setMinFan] = useState(3);
@@ -364,8 +459,8 @@ function SetupScreen({ onStart, onSimulate }) {
         </div>
       </div>
       <div style={{display:'flex',gap:12}}>
-        <button className="btn btn-gold" style={{fontSize:'0.95rem',padding:'9px 26px'}} onClick={()=>onStart(players,minFan)}>開始遊戲</button>
-        <button className="btn btn-green" style={{fontSize:'0.95rem',padding:'9px 26px'}} onClick={()=>onSimulate(players.map(p=>({...p,isHuman:false})),simGames,minFan)}>開始模擬</button>
+        <button className="btn btn-gold" style={{fontSize:'.95rem',padding:'9px 26px'}} onClick={()=>onStart(players,minFan)}>開始遊戲</button>
+        <button className="btn btn-green" style={{fontSize:'.95rem',padding:'9px 26px'}} onClick={()=>onSimulate(players.map(p=>({...p,isHuman:false})),simGames,minFan)}>開始模擬</button>
       </div>
     </div>
   );
@@ -396,7 +491,7 @@ function SimLive({ players, totalGames, minFan, onBack }) {
     <div className="sim-live">
       <div className="sim-header">
         <span className="sim-title">模擬結果</span>
-        <span className="sim-progress">{results.length} / {totalGames} 局{running?' 進行中…':' 完成'}</span>
+        <span className="sim-progress">{results.length}/{totalGames} 局{running?' 進行中…':' 完成'}</span>
         <button className="btn btn-gray" style={{marginLeft:'auto'}} onClick={onBack}>返回設定</button>
       </div>
       <div className="sim-stats-row">
@@ -417,7 +512,7 @@ function SimLive({ players, totalGames, minFan, onBack }) {
               <tr key={idx}>
                 <td>{results.length-idx}</td>
                 {r.finalScores.map((s,i)=><td key={i} style={{color:s>0?'#2ecc71':s<0?'#e74c3c':'inherit'}}>{s>0?'+':''}{s}</td>)}
-                <td style={{color:'var(--dim)',fontSize:'0.68rem'}}>
+                <td style={{color:'var(--dim)',fontSize:'.68rem'}}>
                   {r.hands.filter(h=>h.result?.type==='win').map(h=>`${players[h.result.winner].name}${h.result.isSelfDraw?'摸':'食'}${h.result.fan}番`).join(' · ')||'流局'}
                 </td>
               </tr>
@@ -436,6 +531,10 @@ export default function App() {
   const [selectedTile, setSelectedTile] = useState(null);
   const [simConfig, setSimConfig] = useState(null);
   const [debug, setDebug] = useState(false);
+  // Hover state: { tileKey } for cross-highlighting
+  const [hoverKey, setHoverKey] = useState(null);
+  // Tooltip state: { tile, discardInfo, x, y }
+  const [tooltip, setTooltip] = useState(null);
 
   const humanIdx = hand ? hand.session.players.findIndex(p=>p.isHuman) : 0;
 
@@ -474,13 +573,13 @@ export default function App() {
     if(!hand||hand.phase!=='discard'||hand.currentPlayer!==humanIdx||hand.result) return;
     if(selectedTile?.id===tile.id){
       setHand(prev=>doDiscard(prev,humanIdx,tile.id));
-      setSelectedTile(null);
+      setSelectedTile(null); setTooltip(null);
     } else { setSelectedTile(tile); }
   }
   function handleDiscard(){
     if(!selectedTile) return;
     setHand(prev=>doDiscard(prev,humanIdx,selectedTile.id));
-    setSelectedTile(null);
+    setSelectedTile(null); setTooltip(null);
   }
   function handleSelfDraw(){
     setHand(prev=>{
@@ -498,10 +597,10 @@ export default function App() {
   }
   function handleNextHand(){
     if(!hand) return;
+    setTooltip(null); setHoverKey(null); setSelectedTile(null);
     const ns=advanceSession(hand);
     if(ns.round>=4||ns.handsPlayed>=16){ setHand({...hand,session:ns}); setScreen('summary'); return; }
     setHand(startHand(ns));
-    setSelectedTile(null);
   }
 
   // ── Screens ──
@@ -533,37 +632,39 @@ export default function App() {
   const {players,dealer}=session;
   const isHumanTurn=currentPlayer===humanIdx&&!result;
   const roundLabel=['東','南','西','北'][session.round]||'東';
-
-  // Positions relative to human: bottom=human, right=(h+1)%4, top=(h+2)%4, left=(h+3)%4
   const rightPi=(humanIdx+1)%4, topPi=(humanIdx+2)%4, leftPi=(humanIdx+3)%4;
 
-  const humanHand=hands[humanIdx];
-  const humanDrawnTile=currentPlayer===humanIdx?drawnTile:null;
+  const humanHand = sortHand(hands[humanIdx]); // Always sorted
+  const humanMelds = melds[humanIdx];
+  const humanDrawnTile = currentPlayer===humanIdx ? drawnTile : null;
 
-  // Drawn tile always at the right: separate hand tiles (all except drawn) and drawn tile
-  const handTiles = humanDrawnTile
-    ? humanHand.filter(t=>t.id!==humanDrawnTile.id)
-    : humanHand;
+  // Drawn tile always at right: separate sorted hand from drawn tile
+  const handTilesNoDrawn = humanDrawnTile ? humanHand.filter(t=>t.id!==humanDrawnTile.id) : humanHand;
   const drawnTileObj = humanDrawnTile || null;
 
-  const hint=(isHumanTurn&&phase==='discard')?analyzeHand(humanHand,melds[humanIdx]):null;
+  // Build allSeen for tenpai analysis (all discards)
+  const allSeenDiscards = discards.flat();
+
+  // Hint analysis — always run when it's human's discard turn
+  const hint = (isHumanTurn && phase==='discard')
+    ? analyzeHand(humanHand, humanMelds, allSeenDiscards)
+    : null;
+
+  // Build per-tile discard info map for tooltip
+  const discardInfoMap = hint ? Object.fromEntries(hint.discardAnalysis.map(d=>[d.tile.id, d])) : {};
 
   return (
-    <div className="app">
+    <div className="app" onClick={()=>setTooltip(null)}>
       {/* Header */}
       <div className="hdr">
         <span className="hdr-title">🀄 香港麻雀</span>
         <span className="hdr-info">
-          {roundLabel}風圈 第{session.handsPlayed+1}局
-          {' — 莊：'}<span>{players[dealer].name}</span>
-          {' 剩牌：'}<span>{wall?.length||0}</span>
+          {roundLabel}風圈 第{session.handsPlayed+1}局 — 莊：<span>{players[dealer].name}</span>
+          {' '}剩牌：<span>{wall?.length||0}</span>
         </span>
         <div style={{marginLeft:'auto',display:'flex',gap:8,alignItems:'center'}}>
-          <button
-            className={`btn ${debug?'btn-purple':'btn-gray'}`}
-            style={{fontSize:'0.72rem',padding:'3px 9px'}}
-            onClick={()=>setDebug(d=>!d)}
-          >{debug?'🔍 Debug 開':'🔍 Debug 關'}</button>
+          <button className={`btn ${debug?'btn-purple':'btn-gray'}`} style={{fontSize:'.72rem',padding:'3px 9px'}}
+            onClick={()=>setDebug(d=>!d)}>{debug?'🔍 Debug 開':'🔍 Debug 關'}</button>
           <button className="btn btn-gray" onClick={()=>setScreen('setup')}>返回</button>
         </div>
       </div>
@@ -582,48 +683,36 @@ export default function App() {
 
       {/* Table */}
       <div className="table">
-        {/* Top opponent */}
-        <OpponentPanel player={players[topPi]} hand={hands[topPi]} melds={melds[topPi]} discards={discards[topPi]} flowers={flowers[topPi]} seatWind={seatWinds[topPi]} isDealer={topPi===dealer} isTurn={topPi===currentPlayer&&!result} debug={debug}/>
-        {/* Left opponent */}
-        <OpponentPanel player={players[leftPi]} hand={hands[leftPi]} melds={melds[leftPi]} discards={discards[leftPi]} flowers={flowers[leftPi]} seatWind={seatWinds[leftPi]} isDealer={leftPi===dealer} isTurn={leftPi===currentPlayer&&!result} debug={debug}/>
-        {/* Right opponent */}
-        <OpponentPanel player={players[rightPi]} hand={hands[rightPi]} melds={melds[rightPi]} discards={discards[rightPi]} flowers={flowers[rightPi]} seatWind={seatWinds[rightPi]} isDealer={rightPi===dealer} isTurn={rightPi===currentPlayer&&!result} debug={debug}/>
+        <OpponentPanel player={players[topPi]} hand={hands[topPi]} melds={melds[topPi]} discards={discards[topPi]} flowers={flowers[topPi]} seatWind={seatWinds[topPi]} isDealer={topPi===dealer} isTurn={topPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey}/>
+        <OpponentPanel player={players[leftPi]} hand={hands[leftPi]} melds={melds[leftPi]} discards={discards[leftPi]} flowers={flowers[leftPi]} seatWind={seatWinds[leftPi]} isDealer={leftPi===dealer} isTurn={leftPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey}/>
+        <OpponentPanel player={players[rightPi]} hand={hands[rightPi]} melds={melds[rightPi]} discards={discards[rightPi]} flowers={flowers[rightPi]} seatWind={seatWinds[rightPi]} isDealer={rightPi===dealer} isTurn={rightPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey}/>
 
-        {/* Center */}
         <div className="center">
           <div className="discards-grid">
-            <div className="dpool">
-              <div className="dpool-label">{players[topPi].name} 打出</div>
-              <div className="dpool-tiles">{discards[topPi].map(t=><Tile key={t.id} tile={t} small inDiscard/>)}</div>
-            </div>
-            <div className="dpool">
-              <div className="dpool-label">{players[rightPi].name} 打出</div>
-              <div className="dpool-tiles">{discards[rightPi].map(t=><Tile key={t.id} tile={t} small inDiscard/>)}</div>
-            </div>
-            <div className="dpool">
-              <div className="dpool-label">{players[leftPi].name} 打出</div>
-              <div className="dpool-tiles">{discards[leftPi].map(t=><Tile key={t.id} tile={t} small inDiscard/>)}</div>
-            </div>
-            <div className="dpool">
-              <div className="dpool-label">{players[humanIdx].name} 打出</div>
-              <div className="dpool-tiles">{discards[humanIdx].map(t=><Tile key={t.id} tile={t} small inDiscard/>)}</div>
-            </div>
+            {[topPi,rightPi,leftPi,humanIdx].map(pi=>(
+              <div key={pi} className="dpool">
+                <div className="dpool-label">{players[pi].name} 打出</div>
+                <div className="dpool-tiles">
+                  {discards[pi].map(t=>(
+                    <Tile key={t.id} tile={t} small inDiscard
+                      highlighted={hoverKey===t.key}
+                      onMouseEnter={()=>setHoverKey(t.key)}
+                      onMouseLeave={()=>setHoverKey(null)}/>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
-
           <div className="wall-count">剩牌：<span>{wall?.length||0}</span> 張</div>
-
           <div className="game-log">
             {[...log].reverse().slice(0,15).map((e,i)=><div key={i} className="log-entry">{e}</div>)}
           </div>
-
           {phase==='claiming'&&claimPending&&(
-            <ClaimPrompt
-              claimPending={claimPending} players={players}
+            <ClaimPrompt claimPending={claimPending} players={players}
               onWin={()=>setHand(prev=>playerClaimWin(prev))}
               onPong={()=>setHand(prev=>playerPong(prev))}
               onChi={tiles=>setHand(prev=>playerChi(prev,tiles))}
-              onPass={()=>setHand(prev=>playerPass(prev))}
-            />
+              onPass={()=>setHand(prev=>playerPass(prev))}/>
           )}
         </div>
 
@@ -634,9 +723,9 @@ export default function App() {
             <span className="badge badge-wind">{WIND_LABELS[seatWinds[humanIdx]]}</span>
             {humanIdx===dealer&&<span className="badge badge-dealer">莊</span>}
             <FlowerRow flowers={flowers[humanIdx]}/>
-            {melds[humanIdx].length>0&&(
+            {humanMelds.length>0&&(
               <div className="melds-row">
-                {melds[humanIdx].map((m,i)=>(
+                {humanMelds.map((m,i)=>(
                   <div key={i} className="meld-group">
                     {m.tiles.map(t=><Tile key={t.id} tile={t} small/>)}
                     <span className="meld-label">{m.type==='chi'?'上':m.type==='pong'?'碰':'槓'}</span>
@@ -654,32 +743,92 @@ export default function App() {
             </div>
           </div>
 
-          {/* Hand rack: regular tiles + gap + drawn tile always at right */}
-          <div className="hand-rack">
-            {handTiles.map(t=>(
-              <Tile key={t.id} tile={t}
-                selected={selectedTile?.id===t.id}
-                onClick={()=>handleTileClick(t)}/>
-            ))}
-            {drawnTileObj && <>
+          {/* Hand rack — always sorted, drawn tile always at right */}
+          <div className="hand-rack" style={{position:'relative'}}>
+            {handTilesNoDrawn.map(t=>{
+              const da = discardInfoMap[t.id];
+              const isHintBest = hint && da?.isBestDiscard;
+              const isHint = hint && da?.leadsToTenpai;
+              return (
+                <div key={t.id} style={{position:'relative'}} className="tile-wrapper">
+                  <Tile
+                    tile={t}
+                    selected={selectedTile?.id===t.id}
+                    hint={isHint && !isHintBest}
+                    hintBest={isHintBest}
+                    highlighted={hoverKey===t.key}
+                    onClick={()=>handleTileClick(t)}
+                    onMouseEnter={(e)=>{
+                      setHoverKey(t.key);
+                      if(hint && da) setTooltip({tileId:t.id, discardInfo:da});
+                    }}
+                    onMouseLeave={()=>{ setHoverKey(null); setTooltip(null); }}
+                  />
+                  {tooltip?.tileId===t.id && (
+                    <TenpaiTooltip discardInfo={tooltip.discardInfo} visible/>
+                  )}
+                </div>
+              );
+            })}
+            {drawnTileObj&&<>
               <div className="drawn-gap"/>
-              <Tile
-                tile={drawnTileObj}
-                drawn
-                selected={selectedTile?.id===drawnTileObj.id}
-                onClick={()=>handleTileClick(drawnTileObj)}/>
+              <div style={{position:'relative'}} className="tile-wrapper">
+                <Tile
+                  tile={drawnTileObj}
+                  drawn
+                  selected={selectedTile?.id===drawnTileObj.id}
+                  hint={hint && discardInfoMap[drawnTileObj.id]?.leadsToTenpai && !discardInfoMap[drawnTileObj.id]?.isBestDiscard}
+                  hintBest={hint && discardInfoMap[drawnTileObj.id]?.isBestDiscard}
+                  highlighted={hoverKey===drawnTileObj.key}
+                  onClick={()=>handleTileClick(drawnTileObj)}
+                  onMouseEnter={()=>{
+                    setHoverKey(drawnTileObj.key);
+                    const da=discardInfoMap[drawnTileObj.id];
+                    if(hint&&da) setTooltip({tileId:drawnTileObj.id, discardInfo:da});
+                  }}
+                  onMouseLeave={()=>{ setHoverKey(null); setTooltip(null); }}
+                />
+                {tooltip?.tileId===drawnTileObj.id && (
+                  <TenpaiTooltip discardInfo={discardInfoMap[drawnTileObj.id]} visible/>
+                )}
+              </div>
             </>}
           </div>
 
+          {/* Hint summary bar */}
           {hint&&(
             <div className="hint-panel">
               <span className={`shanten-badge${hint.shanten===0?' tenpai':hint.shanten<0?' win':''}`}>{hint.msg}</span>
-              {hint.bestDiscard&&<span className="hint-discard">建議打：<strong>{TILE_DISPLAY[hint.bestDiscard.key]}</strong></span>}
+              {hint.shanten===0&&<span style={{fontSize:'.72rem',color:'var(--dim)'}}>★ = 最佳打出 · ● = 可聽牌</span>}
+              {hint.shanten>0&&hint.discardAnalysis.filter(d=>d.isBestDiscard).length>0&&(
+                <span style={{fontSize:'.72rem',color:'var(--dim)'}}>
+                  ★ 建議打：{hint.discardAnalysis.filter(d=>d.isBestDiscard).map(d=>TILE_DISPLAY[d.tile.key]).join('、')}
+                </span>
+              )}
               {hint.hints.map((h,i)=><span key={i} className="hint-tag">{h}</span>)}
             </div>
           )}
 
-          <TileTracker hand={humanHand} discards={discards} melds={melds}/>
+          {/* Tenpai winning tiles display when in tenpai */}
+          {hint?.shanten===0&&hint.tenpaiDetails.length>0&&(
+            <div className="tenpai-bar">
+              <span className="tenpai-bar-label">等牌：</span>
+              <div className="tenpai-bar-tiles">
+                {hint.tenpaiDetails.map(d=>(
+                  <div key={d.key} className={`tenpai-win-item ${d.remaining===0?'dead':''}`}
+                    onMouseEnter={()=>setHoverKey(d.key)} onMouseLeave={()=>setHoverKey(null)}>
+                    <div className="tenpai-win-tile">
+                      <TileFace tkey={d.key} isSmall/>
+                    </div>
+                    <span className="tenpai-win-info">{TILE_DISPLAY[d.key]}<br/>{d.remaining}張</span>
+                  </div>
+                ))}
+              </div>
+              <span className="tenpai-total">共 {hint.totalRemaining} 張</span>
+            </div>
+          )}
+
+          <TileTracker hand={humanHand} discards={discards} melds={melds} highlightKey={hoverKey}/>
         </div>
       </div>
 

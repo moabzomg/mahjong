@@ -1,21 +1,22 @@
 // ─── Tile Definitions ────────────────────────────────────────────────────────
 
-export const SUITS = ['man', 'pin', 'sou']; // 萬 筒 索
-export const HONOURS = ['east', 'south', 'west', 'north', 'chun', 'hatsu', 'haku']; // 東南西北中發白
+export const SUITS = ['man', 'pin', 'sou'];
+export const HONOURS = ['east', 'south', 'west', 'north', 'chun', 'hatsu', 'haku'];
 export const WINDS = ['east', 'south', 'west', 'north'];
 export const DRAGONS = ['chun', 'hatsu', 'haku'];
-// Flowers: 1-4 = 梅蘭菊竹 (match seat wind 1-4), 5-8 = 春夏秋冬
 export const FLOWERS = ['plum', 'orchid', 'chrysanthemum', 'bamboo', 'spring', 'summer', 'autumn', 'winter'];
 
+// Chinese number characters for tile display
+const CN_NUM = ['一','二','三','四','五','六','七','八','九'];
+
 export const TILE_DISPLAY = {
-  man1:'1萬',man2:'2萬',man3:'3萬',man4:'4萬',man5:'5萬',man6:'6萬',man7:'7萬',man8:'8萬',man9:'9萬',
-  pin1:'1筒',pin2:'2筒',pin3:'3筒',pin4:'4筒',pin5:'5筒',pin6:'6筒',pin7:'7筒',pin8:'8筒',pin9:'9筒',
-  sou1:'1索',sou2:'2索',sou3:'3索',sou4:'4索',sou5:'5索',sou6:'6索',sou7:'7索',sou8:'8索',sou9:'9索',
+  man1:'一萬',man2:'二萬',man3:'三萬',man4:'四萬',man5:'五萬',man6:'六萬',man7:'七萬',man8:'八萬',man9:'九萬',
+  pin1:'一筒',pin2:'二筒',pin3:'三筒',pin4:'四筒',pin5:'五筒',pin6:'六筒',pin7:'七筒',pin8:'八筒',pin9:'九筒',
+  sou1:'一索',sou2:'二索',sou3:'三索',sou4:'四索',sou5:'五索',sou6:'六索',sou7:'七索',sou8:'八索',sou9:'九索',
   east:'東',south:'南',west:'西',north:'北',chun:'中',hatsu:'發',haku:'白',
   plum:'梅',orchid:'蘭',chrysanthemum:'菊',bamboo:'竹',spring:'春',summer:'夏',autumn:'秋',winter:'冬',
 };
 
-// Unicode emoji for tracker only
 export const TILE_EMOJI = {
   man1:'🀇',man2:'🀈',man3:'🀉',man4:'🀊',man5:'🀋',man6:'🀌',man7:'🀍',man8:'🀎',man9:'🀏',
   pin1:'🀙',pin2:'🀚',pin3:'🀛',pin4:'🀜',pin5:'🀝',pin6:'🀞',pin7:'🀟',pin8:'🀠',pin9:'🀡',
@@ -25,6 +26,7 @@ export const TILE_EMOJI = {
 };
 
 let _uid = 0;
+export function resetUid() { _uid = 0; }
 function makeTile(key) { return { id: _uid++, key }; }
 
 export function buildWall() {
@@ -36,7 +38,6 @@ export function buildWall() {
   for (const h of HONOURS)
     for (let c = 0; c < 4; c++) tiles.push(makeTile(h));
   for (const f of FLOWERS) tiles.push(makeTile(f));
-  // Shuffle
   for (let i = tiles.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
@@ -46,7 +47,7 @@ export function buildWall() {
 
 export function isFlower(tile) { return FLOWERS.includes(tile.key); }
 export function isHonour(tile) { return HONOURS.includes(tile.key); }
-export function isSuit(tile) { return SUITS.some(s => tile.key.startsWith(s)); }
+export function isSuit(tile) { return SUITS.some(s => tile.key.startsWith(s) && /\d$/.test(tile.key)); }
 export function isTerminal(tile) {
   if (!isSuit(tile)) return false;
   const n = parseInt(tile.key.slice(-1));
@@ -58,7 +59,7 @@ export function tileKey(tile) { return tile.key; }
 export function sortHand(tiles) {
   const order = (t) => {
     for (let i = 0; i < SUITS.length; i++)
-      if (t.key.startsWith(SUITS[i])) return i * 10 + parseInt(t.key.slice(-1));
+      if (t.key.startsWith(SUITS[i]) && /\d$/.test(t.key)) return i * 10 + parseInt(t.key.slice(-1));
     const hi = HONOURS.indexOf(t.key);
     if (hi >= 0) return 30 + hi;
     return 40;
@@ -70,7 +71,8 @@ export function sortHand(tiles) {
 
 function suitNumOf(tile) {
   for (let i = 0; i < SUITS.length; i++)
-    if (tile.key.startsWith(SUITS[i])) return { suit: i, num: parseInt(tile.key.slice(-1)) };
+    if (tile.key.startsWith(SUITS[i]) && /\d$/.test(tile.key))
+      return { suit: i, num: parseInt(tile.key.slice(-1)) };
   return null;
 }
 
@@ -94,26 +96,13 @@ export function calcShanten(tiles) {
   const hasPairAmongOrphans = hasOrphan.some(k => cnt[k] >= 2);
   const shantenOrphan = 13 - hasOrphan.length - (hasPairAmongOrphans ? 1 : 0);
 
-  // Standard
   const shantenStd = calcShantenStandard(tiles);
-
   return Math.min(shantenPairs, shantenStd, shantenOrphan);
 }
 
 function calcShantenStandard(tiles) {
   const cnt = countKey(tiles);
   let best = 8;
-
-  const tryPair = (pairKey) => {
-    let rem = [...tiles];
-    let removed = 0;
-    rem = rem.filter(t => { if (removed < 2 && t.key === pairKey) { removed++; return false; } return true; });
-    const melds = countMelds(rem);
-    const needed = 4 - melds.complete;
-    const partial = Math.min(melds.partial, needed);
-    best = Math.min(best, 8 - 2 * melds.complete - partial);
-  };
-
   const pairCandidates = Object.keys(cnt).filter(k => cnt[k] >= 2);
   if (pairCandidates.length === 0) {
     const melds = countMelds(tiles);
@@ -121,7 +110,14 @@ function calcShantenStandard(tiles) {
     const partial = Math.min(melds.partial, needed);
     best = 8 - 2 * melds.complete - partial + 1;
   } else {
-    for (const pk of pairCandidates) tryPair(pk);
+    for (const pk of pairCandidates) {
+      let rem = [...tiles], removed = 0;
+      rem = rem.filter(t => { if (removed < 2 && t.key === pk) { removed++; return false; } return true; });
+      const melds = countMelds(rem);
+      const needed = 4 - melds.complete;
+      const partial = Math.min(melds.partial, needed);
+      best = Math.min(best, 8 - 2 * melds.complete - partial);
+    }
   }
   return best;
 }
@@ -129,7 +125,7 @@ function calcShantenStandard(tiles) {
 function countMelds(tiles) {
   let complete = 0, partial = 0;
   for (const suit of SUITS) {
-    const nums = tiles.filter(t => t.key.startsWith(suit)).map(t => parseInt(t.key.slice(-1))).sort((a,b)=>a-b);
+    const nums = tiles.filter(t => t.key.startsWith(suit) && /\d$/.test(t.key)).map(t => parseInt(t.key.slice(-1))).sort((a,b)=>a-b);
     const ex = extractMelds(nums);
     complete += ex.complete; partial += ex.partial;
   }
@@ -205,7 +201,7 @@ function canFormMelds(tiles, n) {
   if (tiles.length === 0) return false;
   const sorted = [...tiles].sort((a,b) => {
     const o = t => {
-      for (let i=0;i<SUITS.length;i++) if(t.key.startsWith(SUITS[i])) return i*100+parseInt(t.key.slice(-1));
+      for (let i=0;i<SUITS.length;i++) if(t.key.startsWith(SUITS[i])&&/\d$/.test(t.key)) return i*100+parseInt(t.key.slice(-1));
       return HONOURS.indexOf(t.key)+400;
     };
     return o(a)-o(b);
@@ -231,8 +227,6 @@ function canFormMelds(tiles, n) {
 }
 
 // ─── Fan Calculation ──────────────────────────────────────────────────────────
-// Per HK rules: fan 1=4pts, fan 2=8, 3=16, 4=32, 5=48, 6=64, 7=96, 8=128, 9=192, 10=256
-// Self-draw (自摸): winner gets triple from each other player
 
 export function calcFan(tiles, melds, winTile, isSelfDraw, seatWind, roundWind, flowers) {
   const allTiles = [...tiles, ...melds.flatMap(m => m.tiles)];
@@ -240,117 +234,69 @@ export function calcFan(tiles, melds, winTile, isSelfDraw, seatWind, roundWind, 
   const patterns = [];
   let fan = 0;
 
-  // ── Special hands ──
-  // Thirteen orphans 十三么
-  if (melds.length === 0 && isThirteenOrphans(tiles)) {
-    return { fan: 99, patterns: ['十三么'] }; // 爆棚
-  }
-
-  // Seven pairs 七對子 — no extra fan, but counts as win
+  if (melds.length === 0 && isThirteenOrphans(tiles)) return { fan: 99, patterns: ['十三么'] };
   const isSevenPair = melds.length === 0 && isSevenPairs(tiles);
-
-  // All triplets 對對胡 (no chi melds, all triplets)
   const isAllTriplets = !isSevenPair && checkAllTriplets(tiles, melds);
-
-  // 坎坎胡 = all triplets + no chi + self-draw
   const isKanKan = isAllTriplets && !melds.some(m=>m.type==='chi') && isSelfDraw;
   if (isKanKan) { fan = Math.max(fan, 7); patterns.push('坎坎胡'); }
   else if (isAllTriplets) { fan = Math.max(fan, 3); patterns.push('對對胡'); }
 
-  // Pure flush 清一色
   const isPureFlush = allTiles.every(t=>isSuit(t)) &&
-    (() => { const s=new Set(allTiles.map(t=>SUITS.find(x=>t.key.startsWith(x)))); return s.size===1; })();
-  // Nine Gates 九子連環 (pure flush, concealed, 1112345678999 + 1 extra)
-  if (isPureFlush && melds.length===0 && checkNineGates(allTiles)) {
-    return { fan: 99, patterns: ['九子連環'] };
-  }
-  if (isPureFlush) { fan = Math.max(fan, 7); if(!patterns.length)patterns.push('清一色'); }
+    (() => { const s=new Set(allTiles.map(t=>SUITS.find(x=>t.key.startsWith(x)&&/\d$/.test(t.key)))); return s.size===1; })();
+  if (isPureFlush && melds.length===0 && checkNineGates(allTiles)) return { fan: 99, patterns: ['九子連環'] };
+  if (isPureFlush) { fan = Math.max(fan, 7); if(!patterns.length) patterns.push('清一色'); }
 
-  // Half flush 混一色
-  const suits = new Set(allTiles.filter(t=>isSuit(t)).map(t=>SUITS.find(s=>t.key.startsWith(s))));
+  const suits = new Set(allTiles.filter(t=>isSuit(t)).map(t=>SUITS.find(s=>t.key.startsWith(s)&&/\d$/.test(t.key))));
   const hasHonours = allTiles.some(t=>isHonour(t));
-  if (!isPureFlush && suits.size===1 && hasHonours) { fan=Math.max(fan,3); if(!patterns.length)patterns.push('混一色'); }
+  if (!isPureFlush && suits.size===1 && hasHonours) { fan=Math.max(fan,3); if(!patterns.length) patterns.push('混一色'); }
 
-  // All honours 字一色
-  if (allTiles.every(t=>isHonour(t))) { return { fan:99, patterns:['字一色'] }; }
+  if (allTiles.every(t=>isHonour(t))) return { fan:99, patterns:['字一色'] };
+  if (allTiles.every(t=>isTerminalOrHonour(t))) return { fan:99, patterns:['全么九'] };
 
-  // All terminals & honours 全么九
-  if (allTiles.every(t=>isTerminalOrHonour(t))) { return { fan:99, patterns:['全么九'] }; }
-
-  // Big four winds 大四喜
   const windTriplets = WINDS.filter(k => cnt[k]>=3 || melds.some(m=>m.tiles[0]?.key===k&&m.tiles.length>=3));
-  if (windTriplets.length===4) { return { fan:99, patterns:['大四喜'] }; }
-  // Small four winds 小四喜
-  else if (windTriplets.length===3 && WINDS.some(k=>cnt[k]===2&&!windTriplets.includes(k))) {
-    fan=Math.max(fan,99); patterns.push('小四喜');
-    return { fan:99, patterns:['小四喜'] };
-  }
+  if (windTriplets.length===4) return { fan:99, patterns:['大四喜'] };
+  else if (windTriplets.length===3 && WINDS.some(k=>cnt[k]===2&&!windTriplets.includes(k))) return { fan:99, patterns:['小四喜'] };
 
-  // Big three dragons 大三元
   const dragonTriplets = DRAGONS.filter(k => cnt[k]>=3 || melds.some(m=>m.tiles[0]?.key===k&&m.tiles.length>=3));
-  if (dragonTriplets.length===3) { return { fan:99, patterns:['大三元'] }; }
-  // Small three dragons 小三元
+  if (dragonTriplets.length===3) return { fan:99, patterns:['大三元'] };
   if (dragonTriplets.length===2 && DRAGONS.some(k=>cnt[k]===2&&!dragonTriplets.includes(k))) {
-    fan=Math.max(fan,5); if(!patterns.length)patterns.push('小三元');
+    fan=Math.max(fan,5); if(!patterns.length) patterns.push('小三元');
   }
+  if (melds.filter(m=>m.type==='kong').length===4) return { fan:99, patterns:['十八羅漢'] };
 
-  // Eighteen arhats 十八羅漢
-  if (melds.filter(m=>m.type==='kong').length===4) { return { fan:99, patterns:['十八羅漢'] }; }
-
-  // Plain hand 平胡 (+1 fan bonus, only sequences + pair, no honours in melds)
   const isPingHu = !isSevenPair && !isAllTriplets && !isPureFlush && !hasHonours &&
     melds.every(m=>m.type==='chi') && !allTiles.some(t=>isHonour(t));
-  // (平胡 is a modifier, handled below)
 
-  if (fan === 0) fan = 1; // Base: 1 fan
+  if (fan === 0) fan = 1;
 
-  // ── Modifiers (+fan) ──
-
-  // 自摸 +1
   if (isSelfDraw) { fan+=1; patterns.push('自摸'); }
-
-  // 平胡 +1 (all sequences, no honours)
   if (isPingHu) { fan+=1; patterns.push('平胡'); }
-
-  // 無花 +1 (no flowers at all)
   if (!flowers || flowers.length===0) { fan+=1; patterns.push('無花'); }
 
-  // 正花 +1 per matching seat flower (梅蘭菊竹 index 0-3 matches seat wind 0-3)
   if (flowers) {
     for (const f of flowers) {
       const fi = FLOWERS.indexOf(f.key);
       if (fi>=0 && fi<4 && fi===seatWind) { fan+=1; patterns.push(`正花(${TILE_DISPLAY[f.key]})`); }
     }
-    // 一台花 +2: full set of 春夏秋冬 or 梅蘭菊竹
     const flowerKeys = flowers.map(f=>f.key);
-    const hasSpring4 = ['spring','summer','autumn','winter'].every(k=>flowerKeys.includes(k));
-    const hasBamboo4 = ['plum','orchid','chrysanthemum','bamboo'].every(k=>flowerKeys.includes(k));
-    if (hasSpring4||hasBamboo4) { fan+=2; patterns.push('一台花'); }
+    if (['spring','summer','autumn','winter'].every(k=>flowerKeys.includes(k))) { fan+=2; patterns.push('一台花(季)'); }
+    else if (['plum','orchid','chrysanthemum','bamboo'].every(k=>flowerKeys.includes(k))) { fan+=2; patterns.push('一台花(花)'); }
   }
 
-  // 門風 +1 (seat wind triplet)
   const seatWindKey = WINDS[seatWind];
   if (cnt[seatWindKey]>=3||melds.some(m=>m.tiles[0]?.key===seatWindKey&&m.tiles.length>=3)) {
     fan+=1; patterns.push(`門風(${TILE_DISPLAY[seatWindKey]})`);
   }
-
-  // 圈風 +1 (round wind triplet, if different from seat)
   const roundWindKey = WINDS[roundWind];
   if (roundWindKey!==seatWindKey && (cnt[roundWindKey]>=3||melds.some(m=>m.tiles[0]?.key===roundWindKey&&m.tiles.length>=3))) {
     fan+=1; patterns.push(`圈風(${TILE_DISPLAY[roundWindKey]})`);
   }
-
-  // 中發白 箭刻 +1 each
   for (const dk of DRAGONS) {
     if (cnt[dk]>=3||melds.some(m=>m.tiles[0]?.key===dk&&m.tiles.length>=3)) {
       fan+=1; patterns.push(`${TILE_DISPLAY[dk]}刻`);
     }
   }
-
-  if (!patterns.length || patterns.every(p=>['自摸','平胡','無花'].includes(p))) {
-    patterns.unshift('雞胡');
-  }
-
+  if (!patterns.length || patterns.every(p=>['自摸','平胡','無花'].includes(p))) patterns.unshift('雞胡');
   return { fan, patterns };
 }
 
@@ -382,25 +328,24 @@ function canFormOnlyTriplets(tiles) {
 
 function checkNineGates(tiles) {
   const cnt=countKey(tiles);
-  const suit=SUITS.find(s=>tiles[0]?.key.startsWith(s));
+  const suit=SUITS.find(s=>tiles[0]?.key.startsWith(s)&&/\d$/.test(tiles[0]?.key));
   if(!suit) return false;
   const base={1:3,2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:3};
   return Object.entries(base).every(([n,min])=>(cnt[`${suit}${n}`]||0)>=min);
 }
 
-// Per agames HK rules: 1番=4, 2番=8, 3番=16, 4番=32, 5番=48, 6番=64, 7番=96, 8番=128, 9番=192, 10番+=256
 export function fanToPoints(fan) {
-  if (fan >= 99) return 256; // 爆棚
+  if (fan >= 99) return 256;
   const table = [0,4,8,16,32,48,64,96,128,192,256];
   if (fan <= 10) return table[fan];
   return 256;
 }
 
-// ─── Tenpai ──────────────────────────────────────────────────────────────────
+// ─── Tenpai & Win Tiles with counts ─────────────────────────────────────────
 
 export function getTenpaiTiles(tiles, melds) {
-  const results=[];
-  const allKeys=[];
+  const results = [];
+  const allKeys = [];
   for (const s of SUITS) for (let n=1;n<=9;n++) allKeys.push(`${s}${n}`);
   for (const h of HONOURS) allKeys.push(h);
   for (const key of allKeys) {
@@ -409,32 +354,73 @@ export function getTenpaiTiles(tiles, melds) {
   return results;
 }
 
-// ─── Hand Analysis ────────────────────────────────────────────────────────────
+/**
+ * For a tenpai hand, returns for each winning tile key:
+ * { key, remaining } where remaining = 4 - seen (tiles in hand/melds/discards)
+ */
+export function getTenpaiDetails(tiles, melds, allSeenTiles) {
+  const winKeys = getTenpaiTiles(tiles, melds);
+  const seenCnt = {};
+  for (const t of allSeenTiles) seenCnt[t.key] = (seenCnt[t.key]||0)+1;
+  // Also count tiles in hand and melds
+  for (const t of tiles) seenCnt[t.key] = (seenCnt[t.key]||0)+1;
+  for (const m of melds) for (const t of m.tiles) seenCnt[t.key] = (seenCnt[t.key]||0)+1;
 
-export function analyzeHand(tiles, melds) {
-  const shanten=calcShanten(tiles);
-  const tenpai=shanten===0?getTenpaiTiles(tiles,melds):[];
+  return winKeys.map(key => ({
+    key,
+    remaining: Math.max(0, 4 - (seenCnt[key]||0)),
+  }));
+}
 
-  let bestDiscard=null, bestShan=99;
+/**
+ * Analyze each tile in hand: if discarded, what's the resulting shanten + tenpai info?
+ * Returns array of { tile, shantenAfter, tenpaiKeys, isBestDiscard, leadsToTenpai }
+ */
+export function analyzeDiscards(tiles, melds, allSeenTiles) {
+  const results = [];
+  let bestShan = 99;
+
   for (const t of tiles) {
-    const rem=tiles.filter((x,i)=>i!==tiles.indexOf(t));
-    const s=calcShanten(rem);
-    if(s<bestShan){bestShan=s;bestDiscard=t;}
+    const rem = tiles.filter(x => x !== t);
+    const shan = calcShanten(rem);
+    if (shan < bestShan) bestShan = shan;
+    const tenpai = shan === 0 ? getTenpaiDetails(rem, melds, allSeenTiles) : [];
+    results.push({ tile: t, shantenAfter: shan, tenpai, leadsToTenpai: shan === 0 });
   }
 
-  const hints=[];
-  const cnt=countKey(tiles);
-  const pairs=Object.values(cnt).filter(v=>v>=2).length;
-  if(pairs>=4) hints.push('七對子');
-  if(melds.every(m=>m.type!=='chi')&&Object.values(cnt).filter(v=>v>=3).length>=2) hints.push('對對胡');
-  for(const dk of DRAGONS) if(cnt[dk]>=2) hints.push(`${TILE_DISPLAY[dk]}對`);
-  const suitTiles=tiles.filter(t=>isSuit(t));
-  if(suitTiles.length>=8){const s=new Set(suitTiles.map(t=>SUITS.find(x=>t.key.startsWith(x))));if(s.size===1)hints.push('清一色');}
+  return results.map(r => ({ ...r, isBestDiscard: r.shantenAfter === bestShan }));
+}
 
-  let msg='';
-  if(shanten<0) msg='胡牌！';
-  else if(shanten===0) msg=`聽牌！等 ${tenpai.length} 種`;
-  else msg=`差 ${shanten} 步`;
+// ─── Hand Analysis ────────────────────────────────────────────────────────────
 
-  return {shanten,tenpai,bestDiscard,hints,msg};
+export function analyzeHand(tiles, melds, allSeenTiles = []) {
+  const shanten = calcShanten(tiles);
+
+  // If tenpai, get full details including remaining counts
+  const tenpaiDetails = shanten === 0 ? getTenpaiDetails(tiles, melds, allSeenTiles) : [];
+  const totalRemaining = tenpaiDetails.reduce((s, d) => s + d.remaining, 0);
+
+  // Per-discard analysis (always run, so we can hint which tiles lead to tenpai)
+  const discardAnalysis = analyzeDiscards(tiles, melds, allSeenTiles);
+  const bestShan = Math.min(...discardAnalysis.map(d => d.shantenAfter));
+
+  // Pattern hints
+  const hints = [];
+  const cnt = countKey(tiles);
+  const pairs = Object.values(cnt).filter(v=>v>=2).length;
+  if (pairs >= 4) hints.push('七對子');
+  if (melds.every(m=>m.type!=='chi') && Object.values(cnt).filter(v=>v>=3).length>=2) hints.push('對對胡');
+  for (const dk of DRAGONS) if (cnt[dk]>=2) hints.push(`${TILE_DISPLAY[dk]}對`);
+  const suitTiles = tiles.filter(t=>isSuit(t));
+  if (suitTiles.length>=8) {
+    const s = new Set(suitTiles.map(t=>SUITS.find(x=>t.key.startsWith(x)&&/\d$/.test(t.key))));
+    if (s.size===1) hints.push('清一色');
+  }
+
+  let msg = '';
+  if (shanten < 0) msg = '胡牌！';
+  else if (shanten === 0) msg = `聽牌！共 ${totalRemaining} 張可胡`;
+  else msg = `差 ${shanten} 步`;
+
+  return { shanten, tenpaiDetails, totalRemaining, discardAnalysis, bestShan, hints, msg };
 }
