@@ -26,7 +26,6 @@ export const TILE_EMOJI = {
 };
 
 let _uid = 0;
-export function resetUid() { _uid = 0; }
 function makeTile(key) { return { id: _uid++, key }; }
 
 export function buildWall() {
@@ -54,7 +53,6 @@ export function isTerminal(tile) {
   return n === 1 || n === 9;
 }
 export function isTerminalOrHonour(tile) { return isTerminal(tile) || isHonour(tile); }
-export function tileKey(tile) { return tile.key; }
 
 export function sortHand(tiles) {
   const order = (t) => {
@@ -92,7 +90,6 @@ export function calcShanten(tiles) {
   const hasPairAmongOrphans = hasOrphan.some(k => cnt[k] >= 2);
   const shantenOrphan = 13 - hasOrphan.length - (hasPairAmongOrphans ? 1 : 0);
 
-  // Standard hand (七對子 is NOT valid in HK mahjong — removed)
   const shantenStd = calcShantenStandard(tiles);
   return Math.min(shantenStd, shantenOrphan);
 }
@@ -162,16 +159,10 @@ export function checkWin(tiles, melds = []) {
   const meldTiles = melds.reduce((s, m) => s + (m.type === 'kong' ? 4 : 3), 0);
   const needed = 14 - meldTiles;
   if (tiles.length !== needed) return false;
-  // Note: 七對子 is NOT valid in Hong Kong Mahjong
   if (melds.length === 0 && isThirteenOrphans(tiles)) return true;
   return canFormStandard(tiles, melds.length);
 }
 
-function isSevenPairs(tiles) {
-  if (tiles.length !== 14) return false;
-  const cnt = countKey(tiles);
-  return Object.values(cnt).every(v => v === 2);
-}
 
 function isThirteenOrphans(tiles) {
   if (tiles.length !== 14) return false;
@@ -232,7 +223,6 @@ export function calcFan(tiles, melds, winTile, isSelfDraw, seatWind, roundWind, 
   let fan = 0;
 
   if (melds.length === 0 && isThirteenOrphans(tiles)) return { fan: 99, patterns: ['十三么'] };
-  // 七對子 is NOT a valid hand in HK Mahjong
   const isAllTriplets = checkAllTriplets(tiles, melds);
   const isKanKan = isAllTriplets && !melds.some(m=>m.type==='chi') && isSelfDraw;
   if (isKanKan) { fan = Math.max(fan, 7); patterns.push('坎坎胡'); }
@@ -415,7 +405,6 @@ export function analyzeHand(tiles, melds, allSeenTiles = []) {
   // Pattern hints
   const hints = [];
   const cnt = countKey(tiles);
-  // 七對子 removed — not valid in HK Mahjong
   if (melds.every(m=>m.type!=='chi') && Object.values(cnt).filter(v=>v>=3).length>=2) hints.push('對對胡');
   for (const dk of DRAGONS) if (cnt[dk]>=2) hints.push(`${TILE_DISPLAY[dk]}對`);
   const suitTiles = tiles.filter(t=>isSuit(t));

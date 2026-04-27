@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import './index.css';
 import {
   SUITS, HONOURS, WINDS, FLOWERS, TILE_EMOJI, TILE_DISPLAY,
-  sortHand, analyzeHand, calcFan, fanToPoints, isSuit, isHonour,
+  sortHand, analyzeHand, calcFan, fanToPoints,
 } from './game/tiles.js';
 import {
   createSession, startHand, drawTile, doDiscard,
@@ -16,133 +16,111 @@ const WIND_LABELS = ['東','南','西','北'];
 const FLOWER_NAMES = { plum:'梅',orchid:'蘭',chrysanthemum:'菊',bamboo:'竹',spring:'春',summer:'夏',autumn:'秋',winter:'冬' };
 const SUIT_LABEL = { man:'萬', pin:'筒', sou:'索' };
 
-// ─── Tile SVG art — authentic HK Mahjong tile colours ───────────────────────
+// ─── Tile SVG art — authentic HK Mahjong ────────────────────────────────────
 const CN_NUM = ['一','二','三','四','五','六','七','八','九'];
-const HONOUR_COLOR = { east:'#1a6ea8',south:'#c0392b',west:'#27ae60',north:'#1a1a1a',chun:'#c0392b',hatsu:'#27ae60',haku:'#1a6ea8' };
-const FLOWER_COLOR = { plum:'#c0392b',orchid:'#8e44ad',chrysanthemum:'#d35400',bamboo:'#27ae60',spring:'#27ae60',summer:'#d35400',autumn:'#c0392b',winter:'#2980b9' };
-
-// ── 筒 (dots) ──────────────────────────────────────────────────────────────────
-// Per-dot colours per tile, top-to-bottom left-to-right order:
-// 3筒: blue(TL) red(C) green(BR)
-// 4筒: blue(TL) green(TR) green(BL) blue(BR)
-// 5筒: same as 4 + red centre
-// 6筒: 2 green top + 4 red below
-// 7筒: 3 green diagonal top-right + 4 red below-left
-// 8筒: all blue
-// 9筒: row1=blue blue blue, row2=red red red, row3=green green green
-const PIN_DOT_COLORS_MAP = {
-  1:  ['#c0392b'],
-  2:  ['#1a6ea8','#27ae60'],
-  3:  ['#1a6ea8','#c0392b','#27ae60'],
-  4:  ['#1a6ea8','#27ae60','#27ae60','#1a6ea8'],
-  5:  ['#1a6ea8','#27ae60','#c0392b','#27ae60','#1a6ea8'],
-  6:  ['#27ae60','#27ae60','#c0392b','#c0392b','#c0392b','#c0392b'],
-  7:  ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60','#27ae60'],
-  8:  ['#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8'],
-  9:  ['#1a6ea8','#1a6ea8','#1a6ea8','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60','#27ae60'],
+const HONOUR_COLOR = {
+  east:'#1a6ea8', south:'#c0392b', west:'#27ae60', north:'#1a1a1a',
+  chun:'#c0392b', hatsu:'#27ae60', haku:'#1a6ea8',
+};
+const FLOWER_COLOR = {
+  plum:'#c0392b', orchid:'#8e44ad', chrysanthemum:'#d35400', bamboo:'#27ae60',
+  spring:'#27ae60', summer:'#d35400', autumn:'#c0392b', winter:'#2980b9',
 };
 
-// Dot positions — standard mahjong layout (viewBox 0 0 100 100)
-// 3筒: diagonal TL→C→BR
-// 6筒: 2 top (green) + 4 below in 2×2 (red)  → positions: top-centre-left, top-centre-right, then 2×2
-// 7筒: 4 red in corners + 3 green diagonal TR→C→BL on top
-const PIN_POSITIONS = {
+// ── 筒 dots ───────────────────────────────────────────────────────────────────
+// Colours are listed to match positions array index-for-index.
+// 2筒: bottom=blue, top=green
+// 3筒: bottom=blue, mid=red, top=green  (diagonal bottom-left → mid → top-right)
+// 4筒: BL=blue, BR=green, TL=green, TR=blue
+// 5筒: BL=blue, BR=green, C=red, TL=green, TR=blue
+// 6筒: two parallel columns — bottom pair red, mid pair red, top pair green
+// 7筒: 4 green corners first, then 3 red diagonal (TR-inner, C, BL-inner) drawn on top
+// 8筒: all 8 blue, 2 cols × 4 rows
+// 9筒: bottom row green×3, mid row red×3, top row blue×3
+const P_COL = {
+  1: ['#c0392b'],
+  2: ['#1a6ea8','#27ae60'],
+  3: ['#1a6ea8','#c0392b','#27ae60'],
+  4: ['#1a6ea8','#27ae60','#27ae60','#1a6ea8'],
+  5: ['#1a6ea8','#27ae60','#c0392b','#27ae60','#1a6ea8'],
+  6: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60'],
+  7: ['#27ae60','#27ae60','#27ae60','#27ae60','#c0392b','#c0392b','#c0392b'],
+  8: ['#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8'],
+  9: ['#27ae60','#27ae60','#27ae60','#c0392b','#c0392b','#c0392b','#1a6ea8','#1a6ea8','#1a6ea8'],
+};
+// Positions: listed bottom-to-top, left-to-right to match colour order
+const P_POS = {
   1: [[50,50]],
-  2: [[50,28],[50,72]],
-  3: [[30,24],[50,50],[70,76]],
-  4: [[30,27],[70,27],[30,73],[70,73]],
-  5: [[30,24],[70,24],[50,50],[30,76],[70,76]],
-  6: [[35,22],[65,22],[35,50],[65,50],[35,78],[65,78]],
-  7: [[35,22],[65,22],[35,50],[65,50],[35,78],[65,78],[50,50]],
-  8: [[29,18],[71,18],[29,39],[71,39],[29,61],[71,61],[29,82],[71,82]],
-  9: [[26,18],[50,18],[74,18],[26,50],[50,50],[74,50],[26,82],[50,82],[74,82]],
+  2: [[50,72],[50,28]],
+  3: [[30,76],[50,50],[70,24]],
+  4: [[30,73],[70,73],[30,27],[70,27]],
+  5: [[30,76],[70,76],[50,50],[30,24],[70,24]],
+  6: [[33,78],[67,78],[33,50],[67,50],[33,22],[67,22]],
+  // 7: draw 4 green corners first, then 3 red diagonal overlay on top
+  7: [[30,75],[70,25],[30,25],[70,75],[65,30],[50,50],[35,70]],
+  8: [[29,82],[71,82],[29,61],[71,61],[29,39],[71,39],[29,18],[71,18]],
+  9: [[26,82],[50,82],[74,82],[26,50],[50,50],[74,50],[26,18],[50,18],[74,18]],
 };
-// 6筒: 2 green on top row, 4 red in 2×2 below
-// Override positions: top-pair at y=22, then 2×2 at y=50/78
-// Colours: [green,green,red,red,red,red]
-// 7筒: 4 red at corners, 3 green diagonal (TR, C, BL)
-// positions[6] already has 7 coords; colours map: 0-3 red, 4-6 green but we reorder
-// Actually set positions properly:
-PIN_POSITIONS[6] = [[35,20],[65,20],[28,46],[72,46],[28,70],[72,70]];
-// colours for 6: green green red red red red ✓ already set above
-PIN_POSITIONS[7] = [[28,24],[72,24],[28,52],[72,52],[28,78],[72,78],[50,50]];
-// colours for 7: idx 0-3 = red (corners), idx 4-6 = green diagonal → reorder to match positions
-// positions[7]: [TL,TR,ML,MR,BL,BR,CENTRE] → colours: red,red,red,red,green,green,green
-// But we want diagonal green: TR(1), C(6), BL(4) = green, rest red
-// Let's redefine: pos order TL(0),TR(1),ML(2),MR(3),BL(4),BR(5),C(6)
-// green at 1,6,4 → red at 0,2,3,5
-PIN_DOT_COLORS_MAP[7] = ['#c0392b','#27ae60','#c0392b','#c0392b','#27ae60','#c0392b','#27ae60'];
 
 function PinDot({ cx, cy, r, color }) {
   return (
     <g>
       <circle cx={cx} cy={cy} r={r} fill="#ede8d0" stroke={color} strokeWidth={r*0.2}/>
       <circle cx={cx} cy={cy} r={r*0.42} fill={color}/>
-      <circle cx={cx - r*0.2} cy={cy - r*0.2} r={r*0.14} fill="rgba(255,255,255,0.6)"/>
+      <circle cx={cx-r*0.2} cy={cy-r*0.2} r={r*0.14} fill="rgba(255,255,255,0.6)"/>
     </g>
   );
 }
-
 function PinFace({ n, isSmall }) {
-  const positions = PIN_POSITIONS[n] || [];
-  const colors = PIN_DOT_COLORS_MAP[n] || [];
+  const pos = P_POS[n] || [], col = P_COL[n] || [];
   const r = isSmall ? 8 : 10;
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-      {positions.map(([cx,cy],i) => (
-        <PinDot key={i} cx={cx} cy={cy} r={r} color={colors[i] || '#1a6ea8'}/>
-      ))}
+      {pos.map(([cx,cy],i) => <PinDot key={i} cx={cx} cy={cy} r={r} color={col[i]||'#1a6ea8'}/>)}
     </svg>
   );
 }
 
-// ── 索 (bamboo) ────────────────────────────────────────────────────────────────
-// Colour spec per tile (each entry = colour of that stick, 0-indexed):
-// 1索: bird (special)
-// 2索: green, green (single col)
-// 3索: green top, green+green bottom (1 top + 2 bottom row, all green)
+// ── 索 bamboo ─────────────────────────────────────────────────────────────────
+// Colour per stick, index matches position array:
+// 2索: green×2 single col
+// 3索: green top-centre + green×2 bottom-row
 // 4索: green×4 (2×2)
-// 5索: green×2 left, blue centre, green×2 right
-// 6索: 3 left + 3 right, 2×3 layout → left col green, right col red? No:
-//       real 6索 = 2 columns of 3, left=green right=green (all green usually)
-// 7索: 1 red top + 2 green left + 2 blue mid + 2 green right
-// 8索: M-shape = 4+4, left green, right green, forming M
-// 9索: left col green, mid col red, right col green
-
-const SOU_COLOR_MAP = {
+// 5索: left-col green×2, RED centre, right-col green×2
+// 6索: 2 columns × 3 rows, all green
+// 7索: 3 rows of (left+right) = 6 sticks, plus 1 red top-centre = 7
+//      row layout: top-pair(green+green), mid-pair(green+green), bot-pair(green+green), top-centre(RED)
+//      → display as: RED on top, then 3 rows of 2
+// 8索: M at bottom (4 sticks), inverted-M at top (4 sticks)
+//      bottom M: BL, BC-low, BC-high, BR   top inverted-M: TL, TC-high, TC-low, TR
+// 9索: 3 cols × 3 rows — left=green, mid=red, right=green
+const S_COL = {
   2: ['#2e8b3a','#2e8b3a'],
   3: ['#2e8b3a','#2e8b3a','#2e8b3a'],
   4: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
-  5: ['#2e8b3a','#2e8b3a','#1a6ea8','#2e8b3a','#2e8b3a'],
+  5: ['#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#2e8b3a'],
   6: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
-  7: ['#c0392b','#2e8b3a','#1a6ea8','#2e8b3a','#1a6ea8','#2e8b3a','#2e8b3a'],
+  7: ['#c0392b','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
   8: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
   9: ['#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#c0392b','#2e8b3a'],
 };
-
-// Bamboo positions:
-// 3索: 1 stick top-centre, 2 sticks bottom row (left+right)
-// 6索: 3 left col + 3 right col (2×3)
-// 7索: 1 top-centre red, then 2 left + 2 mid + 2 right (3 pairs)
-// 8索: M-shape - 4 left + 4 right forming M
-// 9索: 3 columns of 3
-const SOU_POSITIONS = {
+// Positions: [cx, cy] for each stick centre
+// 5索: left-top, centre, left-bot, right-top, right-bot  → reorder: L-top, RED-centre, L-bot, R-top, R-bot
+const S_POS = {
   2: [[50,28],[50,72]],
-  3: [[50,20],[35,72],[65,72]],
+  3: [[50,18],[35,72],[65,72]],
   4: [[34,28],[66,28],[34,72],[66,72]],
-  5: [[34,22],[66,22],[50,50],[34,78],[66,78]],
+  5: [[34,22],[50,50],[34,78],[66,22],[66,78]],
   6: [[34,18],[66,18],[34,50],[66,50],[34,82],[66,82]],
-  7: [[50,14],[34,38],[50,38],[66,38],[34,62],[66,62],[50,86]],
-  8: [[30,16],[70,16],[30,36],[70,36],[30,62],[70,62],[30,82],[70,82]],
+  // 7: RED top-centre first, then 3 rows of left+right pairs
+  7: [[50,13],[34,36],[66,36],[34,60],[66,60],[34,84],[66,84]],
+  // 8: bottom M (BL,B-inner-L,B-inner-R,BR) then top inverted-M (TL,T-inner-L,T-inner-R,TR)
+  8: [[28,80],[44,64],[56,64],[72,80],[28,20],[44,36],[56,36],[72,20]],
   9: [[25,17],[50,17],[75,17],[25,50],[50,50],[75,50],[25,83],[50,83],[75,83]],
 };
-// 7索 colour mapping to positions above:
-// pos0=top-centre(red), pos1=left-mid(green), pos2=mid-mid(blue), pos3=right-mid(green),
-// pos4=left-bot(green), pos5=right-bot(green), pos6=bottom-centre(green)
-SOU_COLOR_MAP[7] = ['#c0392b','#2e8b3a','#1a6ea8','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'];
 
 function BambooStick({ cx, cy, w, h, color }) {
-  const dark = color === '#2e8b3a' ? '#1a5a22' : color === '#c0392b' ? '#8a1a0a' : '#0d3060';
+  const dark = color==='#2e8b3a'?'#1a5a22':color==='#c0392b'?'#8a1a0a':'#0d3060';
   return (
     <g transform={`translate(${cx},${cy})`}>
       <rect x={-w/2} y={-h/2} width={w} height={h} rx={w*0.45} fill={color}/>
@@ -155,9 +133,7 @@ function BambooStick({ cx, cy, w, h, color }) {
 function SouFace({ n, isSmall }) {
   const sw = isSmall ? 7 : 10;
   const sh = isSmall ? 17 : 24;
-
   if (n === 1) {
-    // 1索: traditional bird in red body, blue wing, green tail
     return (
       <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
         <line x1={25} y1={78} x2={75} y2={70} stroke="#5a3a10" strokeWidth={3} strokeLinecap="round"/>
@@ -174,18 +150,13 @@ function SouFace({ n, isSmall }) {
       </svg>
     );
   }
-
-  const positions = SOU_POSITIONS[n] || [];
-  const colors = SOU_COLOR_MAP[n] || [];
+  const pos = S_POS[n] || [], col = S_COL[n] || [];
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-      {positions.map(([cx,cy],i) => (
-        <BambooStick key={i} cx={cx} cy={cy} w={sw} h={sh} color={colors[i] || '#2e8b3a'}/>
-      ))}
+      {pos.map(([cx,cy],i) => <BambooStick key={i} cx={cx} cy={cy} w={sw} h={sh} color={col[i]||'#2e8b3a'}/>)}
     </svg>
   );
 }
-
 
 function ManFace({ n, isSmall }) {
   const sz = isSmall ? '0.72em' : '1.05em';
@@ -605,7 +576,6 @@ const RULES_DATA = [
   { cat:'一般役型', items:[
     { name:'混一色', fan:3, desc:'一種花色＋字牌組成糊牌' },
     { name:'對對胡', fan:3, desc:'全部刻子（碰）加一對將' },
-    // 七對子 removed — not valid in HK Mahjong
   ]},
   { cat:'高番役型', items:[
     { name:'小三元', fan:5, desc:'兩種箭牌（中發白）刻子＋一種箭牌對' },
@@ -670,16 +640,34 @@ function RulesTab({ onClose }) {
 }
 
 // ─── Strategy Panel (for human player) ───────────────────────────────────────
+const SUIT_NAMES = { man:'萬子', pin:'筒子', sou:'索子' };
+const SUIT_CHARS = { man:'萬', pin:'筒', sou:'索' };
+
 function StrategyPanel({ tiles, melds, seatWind, roundWind, minFan, chosenLane, onChoose }) {
   const scan = tiles.length > 0 ? scanBestLane(tiles, melds, seatWind, roundWind, minFan) : null;
   const lanes = ['flush','halfFlush','triplet','pingHu','dragon','winds','orphan'];
+
+  // Determine dominant suit for flush/halfFlush lanes
+  const suitCt = { man:0, pin:0, sou:0 };
+  for (const t of tiles) {
+    for (const s of ['man','pin','sou']) if (t.key.startsWith(s) && /\d$/.test(t.key)) suitCt[s]++;
+  }
+  const domSuit = Object.entries(suitCt).sort((a,b)=>b[1]-a[1])[0]?.[0];
+
+  function laneLabel(lane) {
+    if ((lane==='flush'||lane==='halfFlush') && domSuit && suitCt[domSuit]>0) {
+      return (LANE_LABELS[lane]||lane) + '(' + SUIT_CHARS[domSuit] + ')';
+    }
+    return LANE_LABELS[lane]||lane;
+  }
+
   return (
     <div className="strategy-panel">
       <div className="strategy-panel-title">牌路策略</div>
       {scan && (
         <div className="strategy-scan">
-          <span style={{fontSize:'.68rem',color:'var(--dim)'}}>AI建議：</span>
-          <span className="strategy-best-badge">{LANE_LABELS[scan.best]||scan.best}</span>
+          <span style={{fontSize:'.68rem',color:'var(--dim)'}}>建議：</span>
+          <span className="strategy-best-badge">{laneLabel(scan.best)}</span>
         </div>
       )}
       <div className="strategy-lane-list">
@@ -690,9 +678,9 @@ function StrategyPanel({ tiles, melds, seatWind, roundWind, minFan, chosenLane, 
           return (
             <button key={lane}
               className={`strategy-lane-btn${isChosen?' chosen':''}${isBest?' best':''}`}
-              onClick={()=>onChoose(lane)}>
-              <span className="sl-name">{LANE_LABELS[lane]||lane}</span>
-              <span className="sl-score">{score>0?'▲':score<0?'▼':'─'}</span>
+              onClick={()=>onChoose(lane===chosenLane?null:lane)}>
+              <span className="sl-name">{laneLabel(lane)}</span>
+              <span className="sl-score" style={{color:score>20?'#27ae60':score<-20?'#e74c3c':'var(--dim)'}}>{score>0?'+'+score:score}</span>
             </button>
           );
         })}
@@ -941,6 +929,13 @@ export default function App() {
   const hint = (isHumanTurn && phase==='discard')
     ? analyzeHand(humanHand, humanMelds, allSeenDiscards)
     : null;
+  // Hint debug: show chosen lane analysis
+  const chosenLaneInfo = chosenLane && hint ? (() => {
+    const suitCt = { man:0,pin:0,sou:0 };
+    for (const t of humanHand) for (const s of ['man','pin','sou']) if (t.key.startsWith(s)&&/\d$/.test(t.key)) suitCt[s]++;
+    const dom = Object.entries(suitCt).sort((a,b)=>b[1]-a[1])[0]?.[0];
+    return { domSuit: dom };
+  })() : null;
 
   // Build per-tile discard info map for tooltip
   const discardInfoMap = hint ? Object.fromEntries(hint.discardAnalysis.map(d=>[d.tile.id, d])) : {};
@@ -1135,11 +1130,13 @@ export default function App() {
             </div>
           )}
 
-          {/* Tenpai-on-discard prompt: when discarding leads to tenpai (shanten=1 → discard → 0) */}
+          {/* Tenpai-on-discard prompt */}
           {hint&&hint.shanten===1&&hint.discardAnalysis.some(d=>d.leadsToTenpai)&&(
-            <TenpaiDiscardPrompt discardAnalysis={hint.discardAnalysis}
-              hoverTileId={tooltip?.tileId} hoverKey={hoverKey}
-              onHoverKey={setHoverKey}/>
+            <TenpaiDiscardPrompt
+              discardAnalysis={hint.discardAnalysis}
+              hoverTileId={tooltip?.tileId}
+              onHoverKey={setHoverKey}
+            />
           )}
 
           {/* Strategy panel */}

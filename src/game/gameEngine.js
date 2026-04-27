@@ -1,6 +1,6 @@
 import {
   buildWall, isFlower, sortHand, checkWin, calcFan, fanToPoints,
-  tileKey, SUITS, WINDS, analyzeHand, TILE_DISPLAY, HONOURS
+  SUITS, WINDS, analyzeHand, TILE_DISPLAY, HONOURS
 } from './tiles.js';
 import { aiDiscard, aiWantsPong, aiWantsChi, meetsMinFan } from '../ai/strategies.js';
 

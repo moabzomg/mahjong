@@ -14,7 +14,7 @@
 import {
   SUITS, HONOURS, WINDS, DRAGONS, FLOWERS,
   calcShanten, sortHand, isHonour, isSuit, isTerminalOrHonour,
-  tileKey, analyzeHand, TILE_DISPLAY,
+  analyzeHand, TILE_DISPLAY,
 } from '../game/tiles.js';
 
 // ─── Strategy profiles ────────────────────────────────────────────────────────
