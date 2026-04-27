@@ -407,9 +407,17 @@ export function scanBestLane(tiles, melds, seatWind, roundWind, minFan = 3) {
   const validLanes = ['flush','halfFlush','triplet','pingHu','dragon','winds','orphan','defensive'];
   const filteredScores = Object.fromEntries(Object.entries(scores).filter(([k])=>validLanes.includes(k)));
   const ranked = Object.entries(filteredScores).sort((a,b)=>b[1]-a[1]);
+
+  // Determine target suit for flush strategies
+  const SUIT_LABELS_MAP = { man:'萬子', pin:'筒子', sou:'索子' };
+  const targetSuitKey = Object.entries(suitCt).sort((a,b)=>b[1]-a[1])[0]?.[0] || 'man';
+  const targetSuitLabel = SUIT_LABELS_MAP[targetSuitKey] || '';
+
   return {
     best: ranked[0]?.[0] || 'pingHu',
     ranked: ranked.map(([lane, score]) => ({ lane, score: Math.round(score) })),
+    targetSuitLabel,
+    targetSuitKey,
     details: {
       orphanHave, pairCt, tripletCt, maxSuit,
       dragonPairs, dragonTrips,

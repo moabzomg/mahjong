@@ -44,7 +44,7 @@ const P_COL = {
   4: ['#1a6ea8','#27ae60','#27ae60','#1a6ea8'],
   5: ['#1a6ea8','#27ae60','#c0392b','#27ae60','#1a6ea8'],
   6: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60'],
-  7: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60','#27ae60'],
+  7: ['#27ae60','#27ae60','#27ae60','#27ae60','#27ae60','#27ae60','#c0392b','#c0392b','#c0392b'],
   8: ['#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8'],
   9: ['#27ae60','#27ae60','#27ae60','#c0392b','#c0392b','#c0392b','#1a6ea8','#1a6ea8','#1a6ea8'], // top=green mid=red bot=blue
 };
@@ -56,8 +56,8 @@ const P_POS = {
   4: [[30,73],[70,73],[30,27],[70,27]],
   5: [[30,76],[70,76],[50,50],[30,24],[70,24]],
   6: [[33,78],[67,78],[33,50],[67,50],[33,22],[67,22]],
-  // 7: 4 reds at same positions as dot-6 corners, then 3 greens TL→C→BR diagonal on top
-  7: [[33,78],[67,78],[33,22],[67,22], [28,22],[50,50],[72,78]],
+  // 7: all 6 dot-6 positions in green first, then 3 red diagonal TL→C→BR (no overlap with green)
+  7: [[33,78],[67,78],[33,50],[67,50],[33,22],[67,22],[22,22],[50,50],[78,78]],
   8: [[29,82],[71,82],[29,61],[71,61],[29,39],[71,39],[29,18],[71,18]],
   9: [[26,18],[50,18],[74,18],[26,50],[50,50],[74,50],[26,82],[50,82],[74,82]],
 };
@@ -99,8 +99,8 @@ const S_COL = {
   3: ['#2e8b3a','#2e8b3a','#2e8b3a'],
   4: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
   5: ['#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#2e8b3a'],
-  6: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
-  7: ['#c0392b','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
+  6: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],  // all green
+  7: ['#c0392b','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],  // red top + 6 green
   8: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
   9: ['#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#c0392b','#2e8b3a'],
 };
@@ -111,9 +111,9 @@ const S_POS = {
   3: [[50,18],[35,72],[65,72]],
   4: [[34,28],[66,28],[34,72],[66,72]],
   5: [[34,22],[50,50],[34,78],[66,22],[66,78]],
-  6: [[34,18],[66,18],[34,50],[66,50],[34,82],[66,82]],
-  // 7: RED top-centre first, then 3 rows of left+right pairs
-  7: [[50,13],[34,36],[66,36],[34,60],[66,60],[34,84],[66,84]],
+  6: [[28,30],[50,30],[72,30],[28,70],[50,70],[72,70]],  // 2 rows of 3
+  // 7: 1 red top-centre, then 2 rows of 3 green sticks
+  7: [[50,16],[28,44],[50,44],[72,44],[28,76],[50,76],[72,76]],
   // 8: inverted-M top (∧) then M bottom (∨), all green
   //    top inverted-M: outer-TL, inner-TL(angled down), inner-TR, outer-TR
   //    bottom M:       outer-BL, inner-BL(angled up),   inner-BR, outer-BR
@@ -137,23 +137,22 @@ function SouFace({ n, isSmall }) {
   const sh = isSmall ? 17 : 24;
 
   if (n === 8) {
-    // 8索: inverted-M (top) + M (bottom) using angled/diagonal sticks
-    // Each "arm" of M/inverted-M is a rotated bamboo stick
+    // 8索: M (bottom) + inverted-M (top), all green
+    // M shape: outer sticks vertical (0°), inner two sticks diagonal meeting at centre valley
+    // Inverted-M: outer sticks vertical (0°), inner two diagonal meeting at centre apex
     const sw8 = isSmall ? 6 : 9;
-    const sh8 = isSmall ? 20 : 28;
-    // inverted-M top: 4 sticks angled inward toward apex
-    // M bottom: 4 sticks angled inward toward valley
+    const sh8 = isSmall ? 20 : 30;
     const sticks8 = [
-      // Inverted-M top (∧): left outer (-30°), left inner (-15°), right inner (+15°), right outer (+30°)
-      { cx:28, cy:22, rot:-28, color:'#2e8b3a' },
-      { cx:44, cy:30, rot:-12, color:'#2e8b3a' },
-      { cx:56, cy:30, rot:12,  color:'#2e8b3a' },
-      { cx:72, cy:22, rot:28,  color:'#2e8b3a' },
-      // M bottom (∨): left outer (+30°), left inner (+15°), right inner (-15°), right outer (-30°)
-      { cx:28, cy:78, rot:28,  color:'#2e8b3a' },
-      { cx:44, cy:70, rot:12,  color:'#2e8b3a' },
-      { cx:56, cy:70, rot:-12, color:'#2e8b3a' },
-      { cx:72, cy:78, rot:-28, color:'#2e8b3a' },
+      // Inverted-M top (∧): outer-L vertical, inner-L angled right, inner-R angled left, outer-R vertical
+      { cx:22, cy:22, rot:0,   color:'#2e8b3a' },  // outer-L vertical
+      { cx:40, cy:28, rot:-22, color:'#2e8b3a' },  // inner-L diagonal inward-up
+      { cx:60, cy:28, rot:22,  color:'#2e8b3a' },  // inner-R diagonal inward-up
+      { cx:78, cy:22, rot:0,   color:'#2e8b3a' },  // outer-R vertical
+      // M bottom (∨): outer-L vertical, inner-L angled right, inner-R angled left, outer-R vertical
+      { cx:22, cy:78, rot:0,   color:'#2e8b3a' },  // outer-L vertical
+      { cx:40, cy:72, rot:22,  color:'#2e8b3a' },  // inner-L diagonal inward-down
+      { cx:60, cy:72, rot:-22, color:'#2e8b3a' },  // inner-R diagonal inward-down
+      { cx:78, cy:78, rot:0,   color:'#2e8b3a' },  // outer-R vertical
     ];
     return (
       <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
@@ -1170,20 +1169,35 @@ export default function App() {
           {hint&&(
             <div className="hint-panel">
               <span className={`shanten-badge${hint.shanten===0?' tenpai':hint.shanten<0?' win':''}`}>{hint.msg}</span>
-              {hint.shanten===0&&(
-                <span style={{fontSize:'.7rem',color:'var(--dim)'}}>
-                  <span style={{color:'var(--gold)'}}>★</span> 打出可聽牌
-                  {hint.tenpaiDetails.length>0&&<> · 等 <span style={{color:'#e74c3c'}}>{hint.totalRemaining}</span> 張</>}
-                </span>
-              )}
-              {hint.shanten===1&&(
-                <span style={{fontSize:'.7rem',color:'var(--dim)'}}>
-                  <span style={{color:'var(--gold)'}}>★</span> 打出可差1步 · 懸停牌查看詳情
-                </span>
-              )}
-              {hint.shanten>1&&(
-                <span style={{fontSize:'.7rem',color:'var(--dim)'}}>懸停各牌查看打出後變化</span>
-              )}
+              {/* Best discard recommendation */}
+              {hint.shanten===0&&hint.discardAnalysis.length>0&&(()=>{
+                const best = hint.discardAnalysis.filter(d=>d.isBestDiscard);
+                const total = best.reduce((s,d)=>s+d.tenpai.reduce((a,w)=>a+w.remaining,0),0);
+                return <span className="hint-best-text">
+                  打 <strong>{best.map(d=>TILE_DISPLAY[d.tile.key]).join(' 或 ')}</strong>
+                  {total>0&&<> · 等{total}張</>}
+                </span>;
+              })()}
+              {hint.shanten===1&&hint.discardAnalysis.some(d=>d.leadsToTenpai)&&(()=>{
+                const best = hint.discardAnalysis.filter(d=>d.isBestDiscard&&d.leadsToTenpai);
+                if(!best.length) return null;
+                const maxWins = Math.max(...best.map(d=>d.tenpai.reduce((s,w)=>s+w.remaining,0)));
+                return <span className="hint-best-text">
+                  打 <strong>{best.map(d=>TILE_DISPLAY[d.tile.key]).join(' 或 ')}</strong> 可聽牌 · 等{maxWins}張
+                </span>;
+              })()}
+              {hint.shanten===1&&!hint.discardAnalysis.some(d=>d.leadsToTenpai)&&(()=>{
+                const best = hint.discardAnalysis.filter(d=>d.isBestDiscard);
+                return <span style={{fontSize:'.7rem',color:'var(--dim)'}}>
+                  建議打 <strong style={{color:'var(--gold-lt)'}}>{best.map(d=>TILE_DISPLAY[d.tile.key]).join(' 或 ')}</strong>
+                </span>;
+              })()}
+              {hint.shanten>1&&(()=>{
+                const best = hint.discardAnalysis.filter(d=>d.isBestDiscard);
+                return <span style={{fontSize:'.7rem',color:'var(--dim)'}}>
+                  建議打 <strong style={{color:'var(--gold-lt)'}}>{best.map(d=>TILE_DISPLAY[d.tile.key]).join(' 或 ')}</strong>
+                </span>;
+              })()}
               {hint.hints.map((h,i)=><span key={i} className="hint-tag">{h}</span>)}
             </div>
           )}

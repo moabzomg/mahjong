@@ -17,8 +17,8 @@
 /* ─── Base ───────────────────────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{font-size:14px;height:100%}
-body{background:var(--felt-dark);color:var(--text);font-family:'Segoe UI','Noto Sans TC',sans-serif;min-height:100%;overflow-x:hidden}
-#root,.app{min-height:100vh;display:flex;flex-direction:column}
+body{background:var(--felt-dark);color:var(--text);font-family:'Segoe UI','Noto Sans TC',sans-serif;height:100%;overflow:hidden}
+#root,.app{height:100vh;display:flex;flex-direction:column;overflow:hidden}
 
 /* ─── Tile ───────────────────────────────────────────────────────────────────── */
 .mj-tile {
@@ -113,21 +113,21 @@ body{background:var(--felt-dark);color:var(--text);font-family:'Segoe UI','Noto 
 .aip.top{grid-area:top;height:160px}
 .aip.left{grid-area:left;overflow:hidden}
 .aip.right{grid-area:right;overflow:hidden}
-.center{grid-area:center;display:flex;flex-direction:column;gap:4px;position:relative}
+.center{grid-area:center;display:flex;flex-direction:column;gap:4px;position:relative;min-height:0;overflow:hidden}
 .bottom-area{grid-area:bottom}
 
 /* ─── Opponent panel ─────────────────────────────────────────────────────────── */
 .aip{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:5px;display:flex;flex-direction:column;gap:3px;overflow:hidden;min-height:0}
 .opp-name{font-size:0.72rem;color:var(--gold-lt);font-weight:600;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
 .opp-tiles{display:flex;flex-wrap:wrap;gap:1px;min-height:10px;overflow:hidden;max-height:72px}
-.opp-discards{display:flex;flex-wrap:wrap;gap:1px;min-height:18px;border-top:1px solid rgba(255,255,255,0.08);padding-top:2px;margin-top:2px}
+.opp-discards{display:flex;flex-wrap:wrap;gap:1px;min-height:18px;border-top:1px solid rgba(255,255,255,0.08);padding-top:2px;margin-top:2px;overflow:hidden;max-height:72px}
 .opp-remain{font-size:0.65rem;color:var(--dim);margin-left:auto}
 
 /* ─── Center ─────────────────────────────────────────────────────────────────── */
-.discards-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;flex:1}
-.dpool{background:var(--panel);border:1px solid var(--border);border-radius:5px;padding:4px}
+.discards-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;flex:1;min-height:0;overflow:hidden}
+.dpool{background:var(--panel);border:1px solid var(--border);border-radius:5px;padding:4px;overflow:hidden;display:flex;flex-direction:column;min-height:0}
 .dpool-label{font-size:0.65rem;color:var(--dim);margin-bottom:2px}
-.dpool-tiles{display:flex;flex-wrap:wrap;gap:2px}
+.dpool-tiles{display:flex;flex-wrap:wrap;gap:2px;overflow:hidden;flex:1;align-content:flex-start}
 
 .game-log{background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:5px;padding:4px 8px;font-size:0.7rem;color:var(--dim);max-height:72px;overflow-y:auto;display:flex;flex-direction:column-reverse}
 .log-entry{padding:1px 0;border-bottom:1px solid rgba(255,255,255,0.04)}
