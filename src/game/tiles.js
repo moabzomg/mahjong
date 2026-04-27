@@ -253,7 +253,7 @@ export function calcFan(tiles, melds, winTile, isSelfDraw, seatWind, roundWind, 
 
   // 平糊 = all sequences (chows), no honours in hand, no triplet melds, concealed win possible
   // In HK rules: 平糊 = 1 fan base. 雞糊 (chicken hand) = also 1 fan minimum but NO bonus label.
-  const isPingHu = !isSevenPair && !isAllTriplets && !isPureFlush && !hasHonours &&
+  const isPingHu = !isAllTriplets && !isPureFlush && !hasHonours &&
     melds.every(m=>m.type==='chi') && !allTiles.some(t=>isHonour(t));
 
   // Base fan is 0; minimum hand (雞糊) gets 1 at end if nothing else applies
