@@ -19,15 +19,15 @@ import {
 
 // ─── Strategy profiles ────────────────────────────────────────────────────────
 export const STRATEGIES = {
-  balanced:   { label:'均衡',   desc:'評估手牌自動選擇最佳路線，兼顧速度與番數' },
-  flush:      { label:'清一色', desc:'集中同一花色，穩定達到高番' },
-  triplet:    { label:'對對胡', desc:'專攻刻子，碰任何配對的牌' },
-  value:      { label:'役牌先行',desc:'優先保留中發白及風牌，快速達到最低番數' },
-  speed:      { label:'速攻',   desc:'最短路線聽牌，不計番數' },
-  dragon:     { label:'大三元', desc:'死守中發白，追求高番' },
-  winds:      { label:'大四喜', desc:'死守風牌刻子，追求爆棚' },
-  orphan:     { label:'十三么', desc:'只保留一九字牌，追求最高番' },
-  defensive:  { label:'保守',   desc:'以安全牌為先，避免放炮' },
+  balanced:   { label:'均衡',     desc:'自動評估手牌選擇最佳路線' },
+  flush:      { label:'清一色',   desc:'集中同一花色，穩定達到高番' },
+  triplet:    { label:'對對胡',   desc:'專攻刻子，碰任何配對的牌' },
+  value:      { label:'番牌優先', desc:'優先保留中發白及風牌，快速達到最低番數' },
+  speed:      { label:'速攻聽牌', desc:'最短路線聽牌，不計番數' },
+  dragon:     { label:'大三元',   desc:'死守中發白，追求高番' },
+  winds:      { label:'大四喜',   desc:'死守風牌刻子，追求爆棚' },
+  orphan:     { label:'十三么',   desc:'只保留一九字牌，追求最高番' },
+  defensive:  { label:'保守打法', desc:'以安全牌為先，避免放炮' },
 };
 
 // ─── Utility helpers ──────────────────────────────────────────────────────────
@@ -430,9 +430,12 @@ export const LANE_LABELS = {
   flush:     '清一色',
   halfFlush: '混一色',
   triplet:   '對對胡',
-  pingHu:    '平糊+門前',
+  pingHu:    '平糊',
   dragon:    '大三元',
   winds:     '大四喜',
   orphan:    '十三么',
-  defensive: '保守',
+  defensive: '保守打法',
+  balanced:  '均衡',
+  value:     '番牌優先',
+  speed:     '速攻聽牌',
 };

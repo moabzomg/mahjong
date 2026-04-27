@@ -19,7 +19,7 @@ const SUIT_LABEL = { man:'萬', pin:'筒', sou:'索' };
 // ─── Tile SVG art — authentic HK Mahjong ────────────────────────────────────
 const CN_NUM = ['一','二','三','四','五','六','七','八','九'];
 const HONOUR_COLOR = {
-  east:'#1a6ea8', south:'#1a6ea8', west:'#1a6ea8', north:'#1a6ea8',
+  east:'#1a6ea8', south:'#c0392b', west:'#27ae60', north:'#1a1a1a',
   chun:'#c0392b', hatsu:'#27ae60', haku:'#1a6ea8',
 };
 const FLOWER_COLOR = {
@@ -27,53 +27,51 @@ const FLOWER_COLOR = {
   spring:'#27ae60', summer:'#d35400', autumn:'#c0392b', winter:'#2980b9',
 };
 
-// ── 筒 dots ───────────────────────────────────────────────────────────────────
-// Colours are listed to match positions array index-for-index.
-// 2筒: bottom=blue, top=green
-// 3筒: bottom=blue, mid=red, top=green  (diagonal bottom-left → mid → top-right)
-// 4筒: BL=blue, BR=green, TL=green, TR=blue
-// 5筒: BL=blue, BR=green, C=red, TL=green, TR=blue
-// 6筒: two parallel columns — bottom pair red, mid pair red, top pair green
-// 7筒: 4 green corners first, then 3 red diagonal (TR-inner, C, BL-inner) drawn on top
-// 8筒: all 8 blue, 2 cols × 4 rows
-// 9筒: bottom row green×3, mid row red×3, top row blue×3
+// ── 筒 (dots) ─────────────────────────────────────────────────────────────────
+// Positions & colours both listed bottom→top, L→R per row
+// 6筒: 2 parallel columns tightly packed — 3 rows × 2 cols
+// 7筒: BOTTOM 4 red (2×2), TOP 3 green (row of 3) — 4 reds below, 3 greens above
+// 8筒: 2 cols × 4 rows, all blue, tightly packed
+
 const P_COL = {
   1: ['#c0392b'],
-  2: ['#1a6ea8','#27ae60'],
-  3: ['#1a6ea8','#c0392b','#27ae60'],
-  4: ['#1a6ea8','#27ae60','#27ae60','#1a6ea8'],
-  5: ['#1a6ea8','#27ae60','#c0392b','#27ae60','#1a6ea8'],
-  6: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60'],
-  7: ['#27ae60','#27ae60','#27ae60','#27ae60','#27ae60','#27ae60','#c0392b','#c0392b','#c0392b'],
+  2: ['#1a6ea8','#27ae60'],                                    // bottom blue, top green
+  3: ['#1a6ea8','#c0392b','#27ae60'],                          // diagonal: BL blue, C red, TR green
+  4: ['#1a6ea8','#27ae60','#27ae60','#1a6ea8'],                // BL blue,BR green / TL green,TR blue
+  5: ['#1a6ea8','#27ae60','#c0392b','#27ae60','#1a6ea8'],      // BL,BR,C,TL,TR
+  6: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60'], // B-row red×2, M-row red×2, T-row green×2
+  7: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60','#27ae60'], // bottom 4 red, top 3 green
   8: ['#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8'],
-  9: ['#27ae60','#27ae60','#27ae60','#c0392b','#c0392b','#c0392b','#1a6ea8','#1a6ea8','#1a6ea8'], // top=green mid=red bot=blue
+  9: ['#27ae60','#27ae60','#27ae60','#c0392b','#c0392b','#c0392b','#1a6ea8','#1a6ea8','#1a6ea8'],
 };
-// Positions: listed bottom-to-top, left-to-right to match colour order
+
 const P_POS = {
-  1: [[50,50]],
-  2: [[50,72],[50,28]],
-  3: [[30,76],[50,50],[70,24]],
-  4: [[30,73],[70,73],[30,27],[70,27]],
-  5: [[30,76],[70,76],[50,50],[30,24],[70,24]],
-  6: [[33,78],[67,78],[33,50],[67,50],[33,22],[67,22]],
-  // 7: all 6 dot-6 positions in green first, then 3 red diagonal TL→C→BR (no overlap with green)
-  7: [[33,78],[67,78],[33,50],[67,50],[33,22],[67,22],[22,22],[50,50],[78,78]],
-  8: [[29,82],[71,82],[29,61],[71,61],[29,39],[71,39],[29,18],[71,18]],
-  9: [[26,18],[50,18],[74,18],[26,50],[50,50],[74,50],[26,82],[50,82],[74,82]],
+  1:  [[50,50]],
+  2:  [[50,70],[50,30]],
+  3:  [[32,74],[50,50],[68,26]],
+  4:  [[32,70],[68,70],[32,30],[68,30]],
+  5:  [[32,73],[68,73],[50,50],[32,27],[68,27]],
+  // 6: 2 cols tightly packed, 3 rows
+  6:  [[34,76],[66,76],[34,50],[66,50],[34,24],[66,24]],
+  // 7: bottom 4 red = 2×2 grid, top 3 green = row of 3
+  7:  [[34,76],[66,76],[34,54],[66,54],[26,26],[50,26],[74,26]],
+  // 8: 2 cols × 4 rows, tightly packed
+  8:  [[32,80],[68,80],[32,60],[68,60],[32,40],[68,40],[32,20],[68,20]],
+  9:  [[26,80],[50,80],[74,80],[26,50],[50,50],[74,50],[26,20],[50,20],[74,20]],
 };
 
 function PinDot({ cx, cy, r, color }) {
   return (
     <g>
-      <circle cx={cx} cy={cy} r={r} fill="#ede8d0" stroke={color} strokeWidth={r*0.2}/>
-      <circle cx={cx} cy={cy} r={r*0.42} fill={color}/>
+      <circle cx={cx} cy={cy} r={r} fill="#ede8d0" stroke={color} strokeWidth={r*0.18}/>
+      <circle cx={cx} cy={cy} r={r*0.44} fill={color}/>
       <circle cx={cx-r*0.2} cy={cy-r*0.2} r={r*0.14} fill="rgba(255,255,255,0.6)"/>
     </g>
   );
 }
 function PinFace({ n, isSmall }) {
   const pos = P_POS[n] || [], col = P_COL[n] || [];
-  const r = isSmall ? 8 : 10;
+  const r = isSmall ? 9 : 11;
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
       {pos.map(([cx,cy],i) => <PinDot key={i} cx={cx} cy={cy} r={r} color={col[i]||'#1a6ea8'}/>)}
@@ -81,95 +79,51 @@ function PinFace({ n, isSmall }) {
   );
 }
 
-// ── 索 bamboo ─────────────────────────────────────────────────────────────────
-// Colour per stick, index matches position array:
-// 2索: green×2 single col
-// 3索: green top-centre + green×2 bottom-row
-// 4索: green×4 (2×2)
-// 5索: left-col green×2, RED centre, right-col green×2
-// 6索: 2 columns × 3 rows, all green
-// 7索: 3 rows of (left+right) = 6 sticks, plus 1 red top-centre = 7
-//      row layout: top-pair(green+green), mid-pair(green+green), bot-pair(green+green), top-centre(RED)
-//      → display as: RED on top, then 3 rows of 2
-// 8索: M at bottom (4 sticks), inverted-M at top (4 sticks)
-//      bottom M: BL, BC-low, BC-high, BR   top inverted-M: TL, TC-high, TC-low, TR
-// 9索: 3 cols × 3 rows — left=green, mid=red, right=green
+// ── 索 (bamboo) ───────────────────────────────────────────────────────────────
+// Sticks are taller and packed tighter in viewBox
+// Positions listed top→bottom, L→R
+// 3索: 1 stick top-centre, 2 sticks bottom-row (L+R)
+// 5索: index order: LT, RED-C, LB, RT, RB
+// 6索: 2 cols × 3 rows, all green
+// 7索: 1 red top-centre, then 3 pairs (L+R) in 3 rows = 7 total
+// 8索: inverted-M top (∧) + M bottom (∨) — 4+4 sticks
+// 9索: 3 cols × 3 rows, L=green, M=red, R=green
 const S_COL = {
   2: ['#2e8b3a','#2e8b3a'],
   3: ['#2e8b3a','#2e8b3a','#2e8b3a'],
   4: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
   5: ['#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#2e8b3a'],
-  6: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],  // all green
-  7: ['#c0392b','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],  // red top + 6 green
+  6: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
+  7: ['#c0392b','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
   8: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
   9: ['#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#c0392b','#2e8b3a'],
 };
-// Positions: [cx, cy] for each stick centre
-// 5索: left-top, centre, left-bot, right-top, right-bot  → reorder: L-top, RED-centre, L-bot, R-top, R-bot
 const S_POS = {
-  2: [[50,28],[50,72]],
-  3: [[50,18],[35,72],[65,72]],
-  4: [[34,28],[66,28],[34,72],[66,72]],
-  5: [[34,22],[50,50],[34,78],[66,22],[66,78]],
-  6: [[28,30],[50,30],[72,30],[28,70],[50,70],[72,70]],  // 2 rows of 3
-  // 7: 1 red top-centre, then 2 rows of 3 green sticks
-  7: [[50,16],[28,44],[50,44],[72,44],[28,76],[50,76],[72,76]],
-  // 8: inverted-M top (∧) then M bottom (∨), all green
-  //    top inverted-M: outer-TL, inner-TL(angled down), inner-TR, outer-TR
-  //    bottom M:       outer-BL, inner-BL(angled up),   inner-BR, outer-BR
-  8: [[28,16],[44,32],[56,32],[72,16],[28,84],[44,68],[56,68],[72,84]],
-  9: [[25,17],[50,17],[75,17],[25,50],[50,50],[75,50],[25,83],[50,83],[75,83]],
+  2:  [[50,28],[50,72]],
+  3:  [[50,16],[35,72],[65,72]],
+  4:  [[35,26],[65,26],[35,74],[65,74]],
+  5:  [[35,20],[50,50],[35,80],[65,20],[65,80]],
+  6:  [[35,16],[65,16],[35,50],[65,50],[35,84],[65,84]],
+  7:  [[50,11],[35,35],[65,35],[35,60],[65,60],[35,84],[65,84]],
+  // 8: inverted-M (4 top) + M (4 bottom): outer-TL,inner-TL,inner-TR,outer-TR + mirror
+  8:  [[24,14],[44,30],[56,30],[76,14],[24,86],[44,70],[56,70],[76,86]],
+  9:  [[25,15],[50,15],[75,15],[25,50],[50,50],[75,50],[25,85],[50,85],[75,85]],
 };
 
 function BambooStick({ cx, cy, w, h, color }) {
-  const dark = color==='#2e8b3a'?'#1a5a22':color==='#c0392b'?'#8a1a0a':'#0d3060';
+  const dark = color==='#2e8b3a'?'#1a5a22':color==='#c0392b'?'#7a1208':'#0d3060';
   return (
     <g transform={`translate(${cx},${cy})`}>
-      <rect x={-w/2} y={-h/2} width={w} height={h} rx={w*0.45} fill={color}/>
-      <rect x={-w/2-0.8} y={-1.2} width={w+1.6} height={2.4} rx={1.2} fill={dark}/>
-      <rect x={-w/2+1} y={-h/2+2} width={w*0.3} height={h-4} rx={0.8} fill="rgba(255,255,255,0.25)"/>
+      <rect x={-w/2} y={-h/2} width={w} height={h} rx={w*0.42} fill={color}/>
+      <rect x={-w/2-0.6} y={-1} width={w+1.2} height={2} rx={1} fill={dark}/>
+      <rect x={-w/2+1} y={-h/2+2} width={w*0.28} height={h-4} rx={0.7} fill="rgba(255,255,255,0.28)"/>
     </g>
   );
 }
 
 function SouFace({ n, isSmall }) {
-  const sw = isSmall ? 7 : 10;
-  const sh = isSmall ? 17 : 24;
-
-  if (n === 8) {
-    // 8索: M (bottom) + inverted-M (top), all green
-    // M shape: outer sticks vertical (0°), inner two sticks diagonal meeting at centre valley
-    // Inverted-M: outer sticks vertical (0°), inner two diagonal meeting at centre apex
-    const sw8 = isSmall ? 6 : 9;
-    const sh8 = isSmall ? 20 : 30;
-    const sticks8 = [
-      // Inverted-M top (∧): outer-L vertical, inner-L angled right, inner-R angled left, outer-R vertical
-      { cx:22, cy:22, rot:0,   color:'#2e8b3a' },  // outer-L vertical
-      { cx:40, cy:28, rot:-22, color:'#2e8b3a' },  // inner-L diagonal inward-up
-      { cx:60, cy:28, rot:22,  color:'#2e8b3a' },  // inner-R diagonal inward-up
-      { cx:78, cy:22, rot:0,   color:'#2e8b3a' },  // outer-R vertical
-      // M bottom (∨): outer-L vertical, inner-L angled right, inner-R angled left, outer-R vertical
-      { cx:22, cy:78, rot:0,   color:'#2e8b3a' },  // outer-L vertical
-      { cx:40, cy:72, rot:22,  color:'#2e8b3a' },  // inner-L diagonal inward-down
-      { cx:60, cy:72, rot:-22, color:'#2e8b3a' },  // inner-R diagonal inward-down
-      { cx:78, cy:78, rot:0,   color:'#2e8b3a' },  // outer-R vertical
-    ];
-    return (
-      <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-        {sticks8.map(({cx,cy,rot,color},i) => {
-          const dark = '#1a5a22';
-          return (
-            <g key={i} transform={`translate(${cx},${cy}) rotate(${rot})`}>
-              <rect x={-sw8/2} y={-sh8/2} width={sw8} height={sh8} rx={sw8*0.45} fill={color}/>
-              <rect x={-sw8/2-0.8} y={-1.2} width={sw8+1.6} height={2.4} rx={1.2} fill={dark}/>
-              <rect x={-sw8/2+1} y={-sh8/2+2} width={sw8*0.3} height={sh8-4} rx={0.8} fill="rgba(255,255,255,0.25)"/>
-            </g>
-          );
-        })}
-      </svg>
-    );
-  }
-
+  const sw = isSmall ? 8 : 11;
+  const sh = isSmall ? 20 : 28;
   if (n === 1) {
     return (
       <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
@@ -415,8 +369,15 @@ function FlowerRow({ flowers }) {
 
 // ─── Opponent Panel ───────────────────────────────────────────────────────────
 function OpponentPanel({ player, hand, melds, discards, flowers, seatWind, isDealer, isTurn, debug, highlightKey, seatIdx, flashClaim, flashType }) {
+  const claimWord = flashClaim ? (flashType==='kong'?'槓！':flashType==='chi'?'上！':'碰！') : null;
+  const claimColor = flashType==='kong'?'#8e44ad':flashType==='chi'?'#1a6ea8':'#c8973a';
   return (
-    <div className={`aip${flashClaim?(flashType==='kong'?' kong-flash':' claim-flash'):''}`}>
+    <div className="aip" style={{position:'relative'}}>
+      {claimWord && (
+        <div className="claim-word-overlay" style={{color:claimColor}}>
+          {claimWord}
+        </div>
+      )}
       <div className="opp-name">
         <span className="badge badge-wind">{WIND_LABELS[seatWind]}</span>
         {isDealer&&<span className="badge badge-dealer">莊</span>}
@@ -875,13 +836,25 @@ export default function App() {
   const [simConfig, setSimConfig] = useState(null);
   const [debug, setDebug] = useState(false);
   const [showRules, setShowRules] = useState(false);
-  const [chosenLane, setChosenLane] = useState(null); // player's chosen strategy lane
+  const [chosenLane, setChosenLane] = useState(null);
+  const [claimAnnounce, setClaimAnnounce] = useState(null); // {player, type, key}
   // Hover state: { tileKey } for cross-highlighting
   const [hoverKey, setHoverKey] = useState(null);
   // Tooltip state: { tile, discardInfo, x, y }
   const [tooltip, setTooltip] = useState(null);
 
   const humanIdx = hand ? hand.session.players.findIndex(p=>p.isHuman) : 0;
+
+  // Watch for new claims and show big word
+  useEffect(()=>{
+    if(!hand?.lastClaimPlayer==null || !hand?.lastClaimType) return;
+    const p = hand.lastClaimPlayer;
+    const t = hand.lastClaimType;
+    if(p==null) return;
+    setClaimAnnounce({player:p, type:t, key: `${p}-${t}-${hand.turnCount||0}`});
+    const timer = setTimeout(()=>setClaimAnnounce(null), 1400);
+    return()=>clearTimeout(timer);
+  },[hand?.lastClaimPlayer, hand?.lastClaimType, hand?.turnCount]);
 
   // AI loop
   useEffect(()=>{
@@ -1044,9 +1017,9 @@ export default function App() {
 
       {/* Table */}
       <div className="table">
-        <OpponentPanel player={players[topPi]} hand={hands[topPi]} melds={melds[topPi]} discards={discards[topPi]} flowers={flowers[topPi]} seatWind={seatWinds[topPi]} isDealer={topPi===dealer} isTurn={topPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey} seatIdx={topPi} flashClaim={hand.lastClaimPlayer===topPi} flashType={hand.lastClaimType}/>
-        <OpponentPanel player={players[leftPi]} hand={hands[leftPi]} melds={melds[leftPi]} discards={discards[leftPi]} flowers={flowers[leftPi]} seatWind={seatWinds[leftPi]} isDealer={leftPi===dealer} isTurn={leftPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey} seatIdx={leftPi} flashClaim={hand.lastClaimPlayer===leftPi} flashType={hand.lastClaimType}/>
-        <OpponentPanel player={players[rightPi]} hand={hands[rightPi]} melds={melds[rightPi]} discards={discards[rightPi]} flowers={flowers[rightPi]} seatWind={seatWinds[rightPi]} isDealer={rightPi===dealer} isTurn={rightPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey} seatIdx={rightPi} flashClaim={hand.lastClaimPlayer===rightPi} flashType={hand.lastClaimType}/>
+        <OpponentPanel player={players[topPi]} hand={hands[topPi]} melds={melds[topPi]} discards={discards[topPi]} flowers={flowers[topPi]} seatWind={seatWinds[topPi]} isDealer={topPi===dealer} isTurn={topPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey} seatIdx={topPi} flashClaim={claimAnnounce?.player===topPi} flashType={claimAnnounce?.type}/>
+        <OpponentPanel player={players[leftPi]} hand={hands[leftPi]} melds={melds[leftPi]} discards={discards[leftPi]} flowers={flowers[leftPi]} seatWind={seatWinds[leftPi]} isDealer={leftPi===dealer} isTurn={leftPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey} seatIdx={leftPi} flashClaim={claimAnnounce?.player===leftPi} flashType={claimAnnounce?.type}/>
+        <OpponentPanel player={players[rightPi]} hand={hands[rightPi]} melds={melds[rightPi]} discards={discards[rightPi]} flowers={flowers[rightPi]} seatWind={seatWinds[rightPi]} isDealer={rightPi===dealer} isTurn={rightPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey} seatIdx={rightPi} flashClaim={claimAnnounce?.player===rightPi} flashType={claimAnnounce?.type}/>
 
         <div className="center">
           <div className="discards-grid">
