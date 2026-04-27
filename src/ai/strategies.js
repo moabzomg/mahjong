@@ -14,7 +14,7 @@
 import {
   SUITS, HONOURS, WINDS, DRAGONS, FLOWERS,
   calcShanten, sortHand, isHonour, isSuit, isTerminalOrHonour,
-  analyzeHand, TILE_DISPLAY,
+  analyzeHand, analyzeDanger, getSafeDiscard, TILE_DISPLAY,
 } from '../game/tiles.js';
 
 // ─── Strategy profiles ────────────────────────────────────────────────────────
@@ -276,11 +276,26 @@ export function aiDiscard(hand, melds, strategy='balanced', seatWind=0, roundWin
     effectiveLane = selectLane(hand, melds, seatWind, roundWind, minFan, strategy);
   }
 
+  // In full defensive mode, use safe discard logic
+  if (effectiveLane === 'defensive') {
+    const dangerMap = gameState ? analyzeDanger(
+      hand,
+      [0,1,2,3].filter(i=>i!==gameState.currentPlayer).map(i=>gameState.melds[i]),
+      [0,1,2,3].filter(i=>i!==gameState.currentPlayer).map(i=>gameState.discards[i]),
+      gameState.wall?.length || 0
+    ) : {};
+    return getSafeDiscard(hand, dangerMap);
+  }
+
   // Score every possible discard
   let best = hand[0], bestScore = Infinity;
   for (const t of hand) {
     const s = scoreDiscard(t, hand, melds, effectiveLane, seatWind, roundWind, opponentThreats, minFan);
-    if (s < bestScore) { bestScore=s; best=t; }
+    // Apply danger penalty: prefer discarding safe tiles when under threat
+    const dangerPenalty = (opponentThreats.threatLevel >= 2)
+      ? (opponentThreats.safeKeys.has(t.key) ? -30 : 0)
+      : 0;
+    if (s + dangerPenalty < bestScore) { bestScore = s + dangerPenalty; best = t; }
   }
   return best;
 }

@@ -420,3 +420,88 @@ export function analyzeHand(tiles, melds, allSeenTiles = []) {
 
   return { shanten, tenpaiDetails, totalRemaining, discardAnalysis, bestShan, hints, msg };
 }
+
+// ─── Danger tile analysis ──────────────────────────────────────────────────────
+// Returns a map of { tileKey → dangerLevel } where dangerLevel is 0-3:
+//   0 = safe (already discarded by that player)
+//   1 = relatively safe (suji / complementary safe tile)
+//   2 = unknown / possible danger
+//   3 = high danger (opponent is near tenpai + tile is isolated)
+export function analyzeDanger(myTiles, opponentMelds, opponentDiscards, wallCount) {
+  const danger = {};
+  const allMyKeys = myTiles.map(t => t.key);
+
+  // Collect all opponent discard keys — these are "genbutsu" (100% safe)
+  const safeKeys = new Set();
+  for (const discs of opponentDiscards) {
+    for (const t of discs) safeKeys.add(t.key);
+  }
+
+  // Calculate opponent threat level (exposed melds = closer to win)
+  const maxMelds = Math.max(...opponentMelds.map(m => m.length), 0);
+  const isThreat = maxMelds >= 2 || (maxMelds >= 1 && wallCount <= 20);
+
+  for (const key of allMyKeys) {
+    if (safeKeys.has(key)) {
+      danger[key] = 0; // genbutsu — safe
+      continue;
+    }
+
+    let level = 2; // unknown default
+
+    if (!isThreat) {
+      level = 1; // low threat environment
+    } else {
+      // Check suji safety: if n±3 has been discarded, n is "relatively safe"
+      const sn = suitNumFromKey(key);
+      if (sn) {
+        const { suit, num } = sn;
+        const suji1 = `${suit}${num - 3}`;
+        const suji2 = `${suit}${num + 3}`;
+        if (safeKeys.has(suji1) || safeKeys.has(suji2)) {
+          level = 1; // suji safe
+        }
+      }
+      // Honour tiles are safe once any opponent discards them
+      if (HONOURS.includes(key)) {
+        // If nobody has discarded this honour yet, it could complete a triplet
+        level = 2;
+      }
+      // Terminal tiles (1/9) — slightly safer than middle tiles when threat is high
+      if (sn && (sn.num === 1 || sn.num === 9)) {
+        level = Math.min(level, 2);
+      }
+      // Middle tiles (4-6) are most dangerous when opponent has 2+ melds of same suit
+      if (sn && sn.num >= 4 && sn.num <= 6) {
+        const oppSuitMelds = opponentMelds.some(playerMelds =>
+          playerMelds.length >= 2 &&
+          playerMelds.every(m => m.tiles[0]?.key.startsWith(sn.suit) && /\d$/.test(m.tiles[0]?.key))
+        );
+        if (oppSuitMelds) level = 3;
+      }
+    }
+
+    danger[key] = level;
+  }
+
+  return danger;
+}
+
+function suitNumFromKey(key) {
+  for (const s of SUITS) {
+    if (key.startsWith(s) && /\d$/.test(key)) {
+      return { suit: s, num: parseInt(key.slice(s.length)) };
+    }
+  }
+  return null;
+}
+
+// Get the safest discard from hand given danger map
+export function getSafeDiscard(tiles, dangerMap) {
+  const sorted = [...tiles].sort((a, b) => {
+    const da = dangerMap[a.key] ?? 2;
+    const db = dangerMap[b.key] ?? 2;
+    return da - db;
+  });
+  return sorted[0] || tiles[0];
+}

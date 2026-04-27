@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import './index.css';
 import {
   SUITS, HONOURS, WINDS, FLOWERS, TILE_EMOJI, TILE_DISPLAY,
-  sortHand, analyzeHand, calcFan, fanToPoints,
+  sortHand, analyzeHand, calcFan, fanToPoints, analyzeDanger,
 } from './game/tiles.js';
 import {
   createSession, startHand, drawTile, doDiscard,
@@ -19,7 +19,7 @@ const SUIT_LABEL = { man:'萬', pin:'筒', sou:'索' };
 // ─── Tile SVG art — authentic HK Mahjong ────────────────────────────────────
 const CN_NUM = ['一','二','三','四','五','六','七','八','九'];
 const HONOUR_COLOR = {
-  east:'#1a6ea8', south:'#c0392b', west:'#27ae60', north:'#1a1a1a',
+  east:'#1a6ea8', south:'#1a6ea8', west:'#1a6ea8', north:'#1a6ea8',
   chun:'#c0392b', hatsu:'#27ae60', haku:'#1a6ea8',
 };
 const FLOWER_COLOR = {
@@ -44,9 +44,9 @@ const P_COL = {
   4: ['#1a6ea8','#27ae60','#27ae60','#1a6ea8'],
   5: ['#1a6ea8','#27ae60','#c0392b','#27ae60','#1a6ea8'],
   6: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60'],
-  7: ['#27ae60','#27ae60','#27ae60','#27ae60','#c0392b','#c0392b','#c0392b'],
+  7: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60','#27ae60'],
   8: ['#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8'],
-  9: ['#27ae60','#27ae60','#27ae60','#c0392b','#c0392b','#c0392b','#1a6ea8','#1a6ea8','#1a6ea8'],
+  9: ['#27ae60','#27ae60','#27ae60','#c0392b','#c0392b','#c0392b','#1a6ea8','#1a6ea8','#1a6ea8'], // top=green mid=red bot=blue
 };
 // Positions: listed bottom-to-top, left-to-right to match colour order
 const P_POS = {
@@ -56,10 +56,10 @@ const P_POS = {
   4: [[30,73],[70,73],[30,27],[70,27]],
   5: [[30,76],[70,76],[50,50],[30,24],[70,24]],
   6: [[33,78],[67,78],[33,50],[67,50],[33,22],[67,22]],
-  // 7: draw 4 green corners first, then 3 red diagonal overlay on top
-  7: [[30,75],[70,25],[30,25],[70,75],[65,30],[50,50],[35,70]],
+  // 7: 4 reds at same positions as dot-6 corners, then 3 greens TL→C→BR diagonal on top
+  7: [[33,78],[67,78],[33,22],[67,22], [28,22],[50,50],[72,78]],
   8: [[29,82],[71,82],[29,61],[71,61],[29,39],[71,39],[29,18],[71,18]],
-  9: [[26,82],[50,82],[74,82],[26,50],[50,50],[74,50],[26,18],[50,18],[74,18]],
+  9: [[26,18],[50,18],[74,18],[26,50],[50,50],[74,50],[26,82],[50,82],[74,82]],
 };
 
 function PinDot({ cx, cy, r, color }) {
@@ -114,8 +114,10 @@ const S_POS = {
   6: [[34,18],[66,18],[34,50],[66,50],[34,82],[66,82]],
   // 7: RED top-centre first, then 3 rows of left+right pairs
   7: [[50,13],[34,36],[66,36],[34,60],[66,60],[34,84],[66,84]],
-  // 8: bottom M (BL,B-inner-L,B-inner-R,BR) then top inverted-M (TL,T-inner-L,T-inner-R,TR)
-  8: [[28,80],[44,64],[56,64],[72,80],[28,20],[44,36],[56,36],[72,20]],
+  // 8: inverted-M top (∧) then M bottom (∨), all green
+  //    top inverted-M: outer-TL, inner-TL(angled down), inner-TR, outer-TR
+  //    bottom M:       outer-BL, inner-BL(angled up),   inner-BR, outer-BR
+  8: [[28,16],[44,32],[56,32],[72,16],[28,84],[44,68],[56,68],[72,84]],
   9: [[25,17],[50,17],[75,17],[25,50],[50,50],[75,50],[25,83],[50,83],[75,83]],
 };
 
@@ -133,6 +135,42 @@ function BambooStick({ cx, cy, w, h, color }) {
 function SouFace({ n, isSmall }) {
   const sw = isSmall ? 7 : 10;
   const sh = isSmall ? 17 : 24;
+
+  if (n === 8) {
+    // 8索: inverted-M (top) + M (bottom) using angled/diagonal sticks
+    // Each "arm" of M/inverted-M is a rotated bamboo stick
+    const sw8 = isSmall ? 6 : 9;
+    const sh8 = isSmall ? 20 : 28;
+    // inverted-M top: 4 sticks angled inward toward apex
+    // M bottom: 4 sticks angled inward toward valley
+    const sticks8 = [
+      // Inverted-M top (∧): left outer (-30°), left inner (-15°), right inner (+15°), right outer (+30°)
+      { cx:28, cy:22, rot:-28, color:'#2e8b3a' },
+      { cx:44, cy:30, rot:-12, color:'#2e8b3a' },
+      { cx:56, cy:30, rot:12,  color:'#2e8b3a' },
+      { cx:72, cy:22, rot:28,  color:'#2e8b3a' },
+      // M bottom (∨): left outer (+30°), left inner (+15°), right inner (-15°), right outer (-30°)
+      { cx:28, cy:78, rot:28,  color:'#2e8b3a' },
+      { cx:44, cy:70, rot:12,  color:'#2e8b3a' },
+      { cx:56, cy:70, rot:-12, color:'#2e8b3a' },
+      { cx:72, cy:78, rot:-28, color:'#2e8b3a' },
+    ];
+    return (
+      <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
+        {sticks8.map(({cx,cy,rot,color},i) => {
+          const dark = '#1a5a22';
+          return (
+            <g key={i} transform={`translate(${cx},${cy}) rotate(${rot})`}>
+              <rect x={-sw8/2} y={-sh8/2} width={sw8} height={sh8} rx={sw8*0.45} fill={color}/>
+              <rect x={-sw8/2-0.8} y={-1.2} width={sw8+1.6} height={2.4} rx={1.2} fill={dark}/>
+              <rect x={-sw8/2+1} y={-sh8/2+2} width={sw8*0.3} height={sh8-4} rx={0.8} fill="rgba(255,255,255,0.25)"/>
+            </g>
+          );
+        })}
+      </svg>
+    );
+  }
+
   if (n === 1) {
     return (
       <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
@@ -234,7 +272,8 @@ function TileFace({ tkey, isSmall }) {
 }
 
 // ─── Tile Component ───────────────────────────────────────────────────────────
-function Tile({ tile, selected, drawn, small, inDiscard, highlighted, dimmed, hint, hintBest, onClick, onMouseEnter, onMouseLeave }) {
+function Tile({ tile, selected, drawn, small, inDiscard, highlighted, dimmed, hint, hintBest, danger, onClick, onMouseEnter, onMouseLeave }) {
+  const dangerCls = danger===3?'danger-high':danger===2?'danger-mid':danger===0?'danger-safe':'';
   const cn = [
     'mj-tile',
     small&&'small',
@@ -245,6 +284,7 @@ function Tile({ tile, selected, drawn, small, inDiscard, highlighted, dimmed, hi
     dimmed&&'dimmed',
     hint&&'hint-tile',
     hintBest&&'hint-best',
+    dangerCls,
   ].filter(Boolean).join(' ');
   return (
     <div className={cn} onClick={onClick} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
@@ -252,6 +292,8 @@ function Tile({ tile, selected, drawn, small, inDiscard, highlighted, dimmed, hi
       <TileFace tkey={tile.key} isSmall={small}/>
       {hintBest && <div className="hint-crown">★</div>}
       {hint && !hintBest && <div className="hint-dot"/>}
+      {danger===3 && !small && <div className="danger-badge">⚠</div>}
+      {danger===0 && !small && <div className="safe-badge">✓</div>}
     </div>
   );
 }
@@ -295,6 +337,30 @@ function TenpaiTooltip({ discardInfo, visible }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ─── Danger Tooltip ─────────────────────────────────────────────────────────
+const DANGER_LABELS = ['✓ 安全（已打出）','≈ 相對安全（筋牌）','? 不明','⚠ 危險（可能出沖）'];
+const DANGER_COLORS = ['#27ae60','#f39c12','#aaa','#e74c3c'];
+function DangerTooltip({ dangerLevel, discardInfo, visible }) {
+  if (!visible || dangerLevel < 0) return null;
+  return (
+    <div className="tenpai-tooltip" style={{minWidth:130}}>
+      <div style={{color:DANGER_COLORS[dangerLevel]||'#aaa',fontWeight:700,fontSize:'.75rem',marginBottom:4}}>
+        {DANGER_LABELS[dangerLevel]||'不明'}
+      </div>
+      {discardInfo?.leadsToTenpai && (
+        <div style={{fontSize:'.65rem',color:'#27ae60'}}>
+          打出可聽牌 · {discardInfo.tenpai.reduce((s,d)=>s+d.remaining,0)}張
+        </div>
+      )}
+      {discardInfo && !discardInfo.leadsToTenpai && discardInfo.shantenAfter!==undefined && (
+        <div style={{fontSize:'.65rem',color:'var(--dim)'}}>
+          打出後差{discardInfo.shantenAfter}步
+        </div>
+      )}
     </div>
   );
 }
@@ -929,6 +995,14 @@ export default function App() {
   const hint = (isHumanTurn && phase==='discard')
     ? analyzeHand(humanHand, humanMelds, allSeenDiscards)
     : null;
+  // Danger tile analysis — warn player about dangerous discards
+  const dangerMap = (isHumanTurn && phase==='discard') ? analyzeDanger(
+    humanHand,
+    [melds[rightPi], melds[topPi], melds[leftPi]],
+    [discards[rightPi], discards[topPi], discards[leftPi]],
+    wall?.length || 0
+  ) : {};
+
   // Hint debug: show chosen lane analysis
   const chosenLaneInfo = chosenLane && hint ? (() => {
     const suitCt = { man:0,pin:0,sou:0 };
@@ -1043,6 +1117,7 @@ export default function App() {
               const da = discardInfoMap[t.id];
               const isHintBest = hint && da?.isBestDiscard;
               const isHint = hint && da?.leadsToTenpai;
+              const dLevel = dangerMap[t.key] ?? -1;
               return (
                 <div key={t.id} style={{position:'relative'}} className="tile-wrapper">
                   <Tile
@@ -1050,16 +1125,17 @@ export default function App() {
                     selected={selectedTile?.id===t.id}
                     hint={isHint && !isHintBest}
                     hintBest={isHintBest}
+                    danger={dLevel}
                     highlighted={hoverKey===t.key}
                     onClick={()=>handleTileClick(t)}
-                    onMouseEnter={(e)=>{
+                    onMouseEnter={()=>{
                       setHoverKey(t.key);
                       if(hint && da) setTooltip({tileId:t.id, discardInfo:da});
                     }}
                     onMouseLeave={()=>{ setHoverKey(null); setTooltip(null); }}
                   />
                   {tooltip?.tileId===t.id && (
-                    <TenpaiTooltip discardInfo={tooltip.discardInfo} visible/>
+                    <DangerTooltip dangerLevel={dLevel} discardInfo={da} visible/>
                   )}
                 </div>
               );
@@ -1081,9 +1157,10 @@ export default function App() {
                     if(hint&&da) setTooltip({tileId:drawnTileObj.id, discardInfo:da});
                   }}
                   onMouseLeave={()=>{ setHoverKey(null); setTooltip(null); }}
+                  danger={dangerMap[drawnTileObj.key] ?? -1}
                 />
                 {tooltip?.tileId===drawnTileObj.id && (
-                  <TenpaiTooltip discardInfo={discardInfoMap[drawnTileObj.id]} visible/>
+                  <DangerTooltip dangerLevel={dangerMap[drawnTileObj.key]??-1} discardInfo={discardInfoMap[drawnTileObj.id]} visible/>
                 )}
               </div>
             </>}
@@ -1108,6 +1185,17 @@ export default function App() {
                 <span style={{fontSize:'.7rem',color:'var(--dim)'}}>懸停各牌查看打出後變化</span>
               )}
               {hint.hints.map((h,i)=><span key={i} className="hint-tag">{h}</span>)}
+            </div>
+          )}
+
+          {/* Danger legend — show when any dangerous tiles exist */}
+          {isHumanTurn && phase==='discard' && Object.values(dangerMap).some(v=>v>=2) && (
+            <div className="danger-legend">
+              <span style={{color:'var(--dim)',fontWeight:600}}>出沖風險：</span>
+              <div className="dl-item"><div className="dl-dot" style={{background:'#e74c3c'}}/><span>⚠ 高危</span></div>
+              <div className="dl-item"><div className="dl-dot" style={{background:'#f39c12'}}/><span>? 不明</span></div>
+              <div className="dl-item"><div className="dl-dot" style={{background:'#27ae60'}}/><span>✓ 安全</span></div>
+              <span style={{color:'var(--dim)',marginLeft:'auto'}}>懸停查看詳情</span>
             </div>
           )}
 

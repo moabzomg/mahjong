@@ -465,3 +465,64 @@ body{background:var(--felt-dark);color:var(--text);font-family:'Segoe UI','Noto 
 }
 .tdp-win-tile-item { display:flex; flex-direction:column; align-items:center; gap:1px; }
 .tdp-dead { opacity:.3; }
+
+/* ─── Danger tile indicators ─────────────────────────────────────────────────── */
+.mj-tile.danger-high {
+  box-shadow: 0 3px 0 #8a1a0a, 0 0 0 2px rgba(192,57,43,0.7), 1px 4px 8px rgba(0,0,0,0.5);
+  border-color: #e74c3c;
+}
+.mj-tile.danger-high::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: rgba(192,57,43,0.08);
+  pointer-events: none;
+}
+.mj-tile.danger-mid {
+  border-color: rgba(243,156,18,0.7);
+  box-shadow: 0 3px 0 #9a8050, 0 0 0 1.5px rgba(243,156,18,0.5), 1px 4px 6px rgba(0,0,0,0.45);
+}
+.mj-tile.danger-safe {
+  border-color: rgba(39,174,96,0.7);
+  box-shadow: 0 3px 0 #1a5a22, 0 0 0 1.5px rgba(39,174,96,0.5), 1px 4px 6px rgba(0,0,0,0.4);
+}
+
+/* Danger / safe corner badges */
+.danger-badge {
+  position: absolute;
+  top: -7px; left: -5px;
+  font-size: 0.65rem;
+  color: #e74c3c;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  pointer-events: none;
+  line-height: 1;
+  font-weight: 900;
+  z-index: 2;
+}
+.safe-badge {
+  position: absolute;
+  top: -7px; left: -4px;
+  font-size: 0.65rem;
+  color: #27ae60;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  pointer-events: none;
+  line-height: 1;
+  font-weight: 900;
+  z-index: 2;
+}
+
+/* ─── Danger legend strip ────────────────────────────────────────────────────── */
+.danger-legend {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 8px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 4px;
+  font-size: 0.62rem;
+  flex-wrap: wrap;
+  margin-top: 3px;
+}
+.dl-item { display: flex; align-items: center; gap: 3px; color: var(--dim); }
+.dl-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
