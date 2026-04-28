@@ -1078,7 +1078,8 @@ export default function App() {
                 ))}
               </div>
             )}
-            <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
+            <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+              {/* 自摸 button */}
               {hand._canSelfDraw&&isHumanTurn&&(()=>{
                 const p=humanIdx;
                 const {fan}=calcFan(hand.hands[p],hand.melds[p],hand.drawnTile,true,
@@ -1087,6 +1088,36 @@ export default function App() {
                 return <button className={`btn ${meetsMin?'btn-red':'btn-gray'}`}
                   title={meetsMin?`自摸 ${fan}番`:`${fan}番 (需${hand.session.minFan}番)`}
                   onClick={handleSelfDraw}>自摸！{fan}番</button>;
+              })()}
+              {/* 暗槓 — when human has 4 of same tile in hand */}
+              {isHumanTurn&&phase==='discard'&&(()=>{
+                const cnt={};
+                for(const t of humanHand) cnt[t.key]=(cnt[t.key]||0)+1;
+                const kongKeys=Object.entries(cnt).filter(([,v])=>v>=4).map(([k])=>k);
+                if(kongKeys.length===0) return null;
+                return kongKeys.map(key=>(
+                  <button key={key} className="btn btn-purple"
+                    onClick={()=>setHand(prev=>declareAnKong(prev,humanIdx,key))}>
+                    暗槓 {TILE_DISPLAY[key]||key}
+                  </button>
+                ));
+              })()}
+              {/* 加槓 — when human has pong meld + 4th tile in hand */}
+              {isHumanTurn&&phase==='discard'&&(()=>{
+                const addKongOptions=[];
+                for(const m of humanMelds){
+                  if(m.type==='pong'){
+                    const extra=humanHand.find(t=>t.key===m.tiles[0]?.key);
+                    if(extra) addKongOptions.push({key:m.tiles[0]?.key, tileId:extra.id});
+                  }
+                }
+                if(addKongOptions.length===0) return null;
+                return addKongOptions.map(opt=>(
+                  <button key={opt.tileId} className="btn btn-purple"
+                    onClick={()=>setHand(prev=>declareAddKong(prev,humanIdx,opt.tileId))}>
+                    加槓 {TILE_DISPLAY[opt.key]||opt.key}
+                  </button>
+                ));
               })()}
               <button className="btn btn-red"
                 disabled={!selectedTile||!isHumanTurn||phase!=='discard'}

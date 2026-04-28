@@ -84,7 +84,7 @@ body{background:var(--felt-dark);color:var(--text);font-family:'Segoe UI','Noto 
 .mj-tile.small .tile-suit{font-size:0.5em}
 
 /* ─── Meld group ─────────────────────────────────────────────────────────────── */
-.melds-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+.melds-row{display:flex;flex-wrap:wrap;gap:3px;flex-shrink:0}
 .meld-group{display:flex;gap:1px;background:rgba(0,0,0,0.2);border-radius:4px;padding:2px;border:1px solid var(--border)}
 .meld-label{font-size:0.62rem;color:var(--dim);padding:1px 3px;align-self:flex-end}
 
@@ -110,17 +110,17 @@ body{background:var(--felt-dark);color:var(--text);font-family:'Segoe UI','Noto 
 
 /* ─── Table layout ───────────────────────────────────────────────────────────── */
 .table{flex:1;display:grid;grid-template-areas:". top ." "left center right" ". bottom .";grid-template-columns:200px 1fr 200px;grid-template-rows:160px 1fr auto;gap:4px;padding:5px;position:relative;min-height:0}
-.aip.top{grid-area:top;height:160px}
-.aip.left{grid-area:left;overflow:hidden}
-.aip.right{grid-area:right;overflow:hidden}
+.aip.top{grid-area:top;height:170px;overflow:hidden}
+.aip.left{grid-area:left;overflow:hidden;display:flex;flex-direction:column}
+.aip.right{grid-area:right;overflow:hidden;display:flex;flex-direction:column}
 .center{grid-area:center;display:flex;flex-direction:column;gap:4px;position:relative;min-height:0;overflow:hidden}
 .bottom-area{grid-area:bottom}
 
 /* ─── Opponent panel ─────────────────────────────────────────────────────────── */
-.aip{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:5px;display:flex;flex-direction:column;gap:3px;overflow:hidden;min-height:0}
+.aip{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:5px;display:flex;flex-direction:column;gap:2px;min-height:0}
 .opp-name{font-size:0.72rem;color:var(--gold-lt);font-weight:600;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
-.opp-tiles{display:flex;flex-wrap:wrap;gap:1px;min-height:10px;overflow:hidden;max-height:72px}
-.opp-discards{display:flex;flex-wrap:wrap;gap:1px;min-height:18px;border-top:1px solid rgba(255,255,255,0.08);padding-top:2px;margin-top:2px;overflow:hidden;max-height:72px}
+.opp-tiles{display:flex;flex-wrap:wrap;gap:1px;min-height:22px;flex:1;overflow:hidden;align-content:flex-start}
+.opp-discards{display:flex;flex-wrap:wrap;gap:1px;min-height:18px;max-height:36px;border-top:1px solid rgba(255,255,255,0.08);padding-top:2px;flex-shrink:0;overflow:hidden}
 .opp-remain{font-size:0.65rem;color:var(--dim);margin-left:auto}
 
 /* ─── Center ─────────────────────────────────────────────────────────────────── */
