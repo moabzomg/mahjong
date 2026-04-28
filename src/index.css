@@ -551,3 +551,59 @@ body{background:var(--felt-dark);color:var(--text);font-family:'Segoe UI','Noto 
 /* Remove old flash animations (replaced by word overlay) */
 .aip.claim-flash { animation: none; box-shadow: none; }
 .aip.kong-flash  { animation: none; box-shadow: none; }
+
+/* ─── Hint banner on tile (replaces star/dot badges) ───────────────────────── */
+.hint-banner {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: 1px 0;
+  text-align: center;
+  font-size: 0.42rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  border-radius: 4px 4px 0 0;
+  pointer-events: none;
+  z-index: 3;
+  line-height: 1.4;
+}
+.hint-banner-best {
+  background: #c8973a;
+  color: #000;
+}
+.hint-banner-ok {
+  background: rgba(39,174,96,0.85);
+  color: #fff;
+}
+/* Remove old crown/dot styles */
+.hint-crown { display: none; }
+.hint-dot   { display: none; }
+
+/* ─── Hint panel strategy text ──────────────────────────────────────────────── */
+.hint-strategy-text {
+  font-size: 0.72rem;
+  color: var(--gold-lt);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.hint-wait-count {
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+.hint-wait-count strong { color: #e74c3c; }
+.hint-legend {
+  font-size: 0.65rem;
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.hint-crown-small {
+  color: #c8973a;
+  font-weight: 900;
+  font-size: 0.75rem;
+}
+.hint-dot-small {
+  color: #27ae60;
+  font-weight: 900;
+  font-size: 0.75rem;
+}

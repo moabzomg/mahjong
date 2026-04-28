@@ -18,8 +18,9 @@ const SUIT_LABEL = { man:'萬', pin:'筒', sou:'索' };
 
 // ─── Tile SVG art — authentic HK Mahjong ────────────────────────────────────
 const CN_NUM = ['一','二','三','四','五','六','七','八','九'];
+// 東南西北 all in blue, 中=red, 發=green, 白=blue frame
 const HONOUR_COLOR = {
-  east:'#1a6ea8', south:'#c0392b', west:'#27ae60', north:'#1a1a1a',
+  east:'#1a6ea8', south:'#1a6ea8', west:'#1a6ea8', north:'#1a6ea8',
   chun:'#c0392b', hatsu:'#27ae60', haku:'#1a6ea8',
 };
 const FLOWER_COLOR = {
@@ -28,36 +29,39 @@ const FLOWER_COLOR = {
 };
 
 // ── 筒 (dots) ─────────────────────────────────────────────────────────────────
-// Positions & colours both listed bottom→top, L→R per row
-// 6筒: 2 parallel columns tightly packed — 3 rows × 2 cols
-// 7筒: BOTTOM 4 red (2×2), TOP 3 green (row of 3) — 4 reds below, 3 greens above
-// 8筒: 2 cols × 4 rows, all blue, tightly packed
-
+// 6筒: 2 cols × 3 rows — bottom 2 red, mid 2 red, top 2 green
+// 7筒: same 2×2 red base as 6筒 bottom-4, plus 3 green DIAGONAL top-left→bottom-right on top
+// 8筒: 2 cols × 4 rows, all blue, same column spacing as 6/7筒
 const P_COL = {
   1: ['#c0392b'],
-  2: ['#1a6ea8','#27ae60'],                                    // bottom blue, top green
-  3: ['#1a6ea8','#c0392b','#27ae60'],                          // diagonal: BL blue, C red, TR green
-  4: ['#1a6ea8','#27ae60','#27ae60','#1a6ea8'],                // BL blue,BR green / TL green,TR blue
-  5: ['#1a6ea8','#27ae60','#c0392b','#27ae60','#1a6ea8'],      // BL,BR,C,TL,TR
-  6: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60'], // B-row red×2, M-row red×2, T-row green×2
-  7: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60','#27ae60'], // bottom 4 red, top 3 green
+  2: ['#1a6ea8','#27ae60'],
+  3: ['#1a6ea8','#c0392b','#27ae60'],
+  4: ['#1a6ea8','#27ae60','#27ae60','#1a6ea8'],
+  5: ['#1a6ea8','#27ae60','#c0392b','#27ae60','#1a6ea8'],
+  6: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60'],
+  // 7: 4 red (same positions as 6筒 bottom 4) + 3 green diagonal TL→BR
+  7: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60','#27ae60'],
   8: ['#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8'],
   9: ['#27ae60','#27ae60','#27ae60','#c0392b','#c0392b','#c0392b','#1a6ea8','#1a6ea8','#1a6ea8'],
 };
 
+// Column x coords for 6筒 style: left=34, right=66
+// Row y coords for 6筒: bot=76, mid=50, top=24
+// 7筒: 4 red at same positions as 6筒 rows 1+2 (bot+mid), 
+//      3 green diagonal: TL(28,24) → C(50,50) → BR(72,76) but inside 6筒 row pattern
+//      Exactly: green at (34,24), (50,50), (66,76) — diagonal through 6筒 top-L, centre, bot-R
+// 8筒: same columns (34,66), 4 rows at y=80,58,36,14
 const P_POS = {
-  1:  [[50,50]],
-  2:  [[50,70],[50,30]],
-  3:  [[32,74],[50,50],[68,26]],
-  4:  [[32,70],[68,70],[32,30],[68,30]],
-  5:  [[32,73],[68,73],[50,50],[32,27],[68,27]],
-  // 6: 2 cols tightly packed, 3 rows
-  6:  [[34,76],[66,76],[34,50],[66,50],[34,24],[66,24]],
-  // 7: bottom 4 red = 2×2 grid, top 3 green = row of 3
-  7:  [[34,76],[66,76],[34,54],[66,54],[26,26],[50,26],[74,26]],
-  // 8: 2 cols × 4 rows, tightly packed
-  8:  [[32,80],[68,80],[32,60],[68,60],[32,40],[68,40],[32,20],[68,20]],
-  9:  [[26,80],[50,80],[74,80],[26,50],[50,50],[74,50],[26,20],[50,20],[74,20]],
+  1: [[50,50]],
+  2: [[50,71],[50,29]],
+  3: [[32,74],[50,50],[68,26]],
+  4: [[34,71],[66,71],[34,29],[66,29]],
+  5: [[34,74],[66,74],[50,50],[34,26],[66,26]],
+  6: [[34,76],[66,76],[34,50],[66,50],[34,24],[66,24]],
+  // 7: red at same 4 positions as 6筒 bottom+mid, green diagonal overlay
+  7: [[34,76],[66,76],[34,50],[66,50],  [34,24],[50,50],[66,76]],
+  8: [[34,80],[66,80],[34,58],[66,58],[34,36],[66,36],[34,14],[66,14]],
+  9: [[26,80],[50,80],[74,80],[26,50],[50,50],[74,50],[26,20],[50,20],[74,20]],
 };
 
 function PinDot({ cx, cy, r, color }) {
@@ -65,13 +69,13 @@ function PinDot({ cx, cy, r, color }) {
     <g>
       <circle cx={cx} cy={cy} r={r} fill="#ede8d0" stroke={color} strokeWidth={r*0.18}/>
       <circle cx={cx} cy={cy} r={r*0.44} fill={color}/>
-      <circle cx={cx-r*0.2} cy={cy-r*0.2} r={r*0.14} fill="rgba(255,255,255,0.6)"/>
+      <circle cx={cx-r*0.2} cy={cy-r*0.2} r={r*0.14} fill="rgba(255,255,255,0.62)"/>
     </g>
   );
 }
 function PinFace({ n, isSmall }) {
   const pos = P_POS[n] || [], col = P_COL[n] || [];
-  const r = isSmall ? 9 : 11;
+  const r = isSmall ? 8.5 : 10.5;
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
       {pos.map(([cx,cy],i) => <PinDot key={i} cx={cx} cy={cy} r={r} color={col[i]||'#1a6ea8'}/>)}
@@ -80,50 +84,57 @@ function PinFace({ n, isSmall }) {
 }
 
 // ── 索 (bamboo) ───────────────────────────────────────────────────────────────
-// Sticks are taller and packed tighter in viewBox
-// Positions listed top→bottom, L→R
-// 3索: 1 stick top-centre, 2 sticks bottom-row (L+R)
-// 5索: index order: LT, RED-C, LB, RT, RB
-// 6索: 2 cols × 3 rows, all green
-// 7索: 1 red top-centre, then 3 pairs (L+R) in 3 rows = 7 total
-// 8索: inverted-M top (∧) + M bottom (∨) — 4+4 sticks
-// 9索: 3 cols × 3 rows, L=green, M=red, R=green
+// Standard HK mahjong bamboo layout:
+// 6索: 2 columns × 3 rows, tall sticks filling the tile height
+// 7索: 1 red stick on top centre + 2 col × 3 rows below (6 green) = 7
+// 8索: 2 columns × 4 rows, all green, tall sticks
+// Sticks are tall, narrow, with bamboo node at centre
 const S_COL = {
   2: ['#2e8b3a','#2e8b3a'],
   3: ['#2e8b3a','#2e8b3a','#2e8b3a'],
   4: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
   5: ['#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#2e8b3a'],
   6: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
+  // 7: red top-centre first, then 2 cols of 3
   7: ['#c0392b','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
   8: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
   9: ['#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#c0392b','#2e8b3a'],
 };
+
+// Bamboo positions — tall sticks spanning tile height
+// For 2-col tiles: left col at x=35, right col at x=65
+// For 3-col tiles: x=25,50,75
+// Row spacing fills viewbox: for 3-row = y=18,50,82; for 4-row = y=12,37,63,88
 const S_POS = {
   2:  [[50,28],[50,72]],
-  3:  [[50,16],[35,72],[65,72]],
-  4:  [[35,26],[65,26],[35,74],[65,74]],
-  5:  [[35,20],[50,50],[35,80],[65,20],[65,80]],
-  6:  [[35,16],[65,16],[35,50],[65,50],[35,84],[65,84]],
-  7:  [[50,11],[35,35],[65,35],[35,60],[65,60],[35,84],[65,84]],
-  // 8: inverted-M (4 top) + M (4 bottom): outer-TL,inner-TL,inner-TR,outer-TR + mirror
-  8:  [[24,14],[44,30],[56,30],[76,14],[24,86],[44,70],[56,70],[76,86]],
-  9:  [[25,15],[50,15],[75,15],[25,50],[50,50],[75,50],[25,85],[50,85],[75,85]],
+  3:  [[50,18],[35,72],[65,72]],
+  4:  [[35,27],[65,27],[35,73],[65,73]],
+  5:  [[35,21],[50,50],[35,79],[65,21],[65,79]],
+  6:  [[35,18],[65,18],[35,50],[65,50],[35,82],[65,82]],
+  // 7: 1 red top-centre + 3-row 2-col below
+  7:  [[50,12],[35,38],[65,38],[35,63],[65,63],[35,88],[65,88]],
+  // 8: 2 cols × 4 rows
+  8:  [[35,12],[65,12],[35,37],[65,37],[35,63],[65,63],[35,88],[65,88]],
+  9:  [[25,18],[50,18],[75,18],[25,50],[50,50],[75,50],[25,82],[50,82],[75,82]],
 };
 
 function BambooStick({ cx, cy, w, h, color }) {
-  const dark = color==='#2e8b3a'?'#1a5a22':color==='#c0392b'?'#7a1208':'#0d3060';
+  const dark = color==='#2e8b3a'?'#1a5422':color==='#c0392b'?'#7a1208':'#0d3060';
   return (
     <g transform={`translate(${cx},${cy})`}>
-      <rect x={-w/2} y={-h/2} width={w} height={h} rx={w*0.42} fill={color}/>
-      <rect x={-w/2-0.6} y={-1} width={w+1.2} height={2} rx={1} fill={dark}/>
-      <rect x={-w/2+1} y={-h/2+2} width={w*0.28} height={h-4} rx={0.7} fill="rgba(255,255,255,0.28)"/>
+      {/* Stick body */}
+      <rect x={-w/2} y={-h/2} width={w} height={h} rx={w*0.38} fill={color}/>
+      {/* Node ring at centre */}
+      <rect x={-w/2-1} y={-1.8} width={w+2} height={3.6} rx={1.8} fill={dark}/>
+      {/* Highlight stripe */}
+      <rect x={-w/2+1.2} y={-h/2+2.5} width={w*0.28} height={h-5} rx={0.7} fill="rgba(255,255,255,0.3)"/>
     </g>
   );
 }
 
 function SouFace({ n, isSmall }) {
-  const sw = isSmall ? 8 : 11;
-  const sh = isSmall ? 20 : 28;
+  const sw = isSmall ? 7 : 10;
+  const sh = isSmall ? 22 : 30;
   if (n === 1) {
     return (
       <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
@@ -243,8 +254,8 @@ function Tile({ tile, selected, drawn, small, inDiscard, highlighted, dimmed, hi
     <div className={cn} onClick={onClick} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
       title={TILE_DISPLAY[tile.key]||tile.key}>
       <TileFace tkey={tile.key} isSmall={small}/>
-      {hintBest && <div className="hint-crown">★</div>}
-      {hint && !hintBest && <div className="hint-dot"/>}
+      {hintBest && <div className="hint-banner hint-banner-best">★ 建議</div>}
+      {hint && !hintBest && <div className="hint-banner hint-banner-ok">聽牌</div>}
       {danger===3 && !small && <div className="danger-badge">⚠</div>}
       {danger===0 && !small && <div className="safe-badge">✓</div>}
     </div>
@@ -1138,40 +1149,45 @@ export default function App() {
             </>}
           </div>
 
-          {/* Hint summary bar */}
+          {/* Hint summary bar — strategy-based, no long tile name lists */}
           {hint&&(
             <div className="hint-panel">
               <span className={`shanten-badge${hint.shanten===0?' tenpai':hint.shanten<0?' win':''}`}>{hint.msg}</span>
-              {/* Best discard recommendation */}
-              {hint.shanten===0&&hint.discardAnalysis.length>0&&(()=>{
-                const best = hint.discardAnalysis.filter(d=>d.isBestDiscard);
-                const total = best.reduce((s,d)=>s+d.tenpai.reduce((a,w)=>a+w.remaining,0),0);
-                return <span className="hint-best-text">
-                  打 <strong>{best.map(d=>TILE_DISPLAY[d.tile.key]).join(' 或 ')}</strong>
-                  {total>0&&<> · 等{total}張</>}
-                </span>;
+              {/* Strategy guidance based on chosen lane */}
+              {(()=>{
+                const scan = hint && humanHand.length>0
+                  ? (() => { try { return scanBestLane(humanHand, humanMelds, seatWinds[humanIdx], session.round, session.minFan); } catch(e){return null;} })()
+                  : null;
+                const lane = chosenLane || scan?.best;
+                const suitLabel = scan?.targetSuitLabel || '';
+                if (!lane || !scan) return null;
+                // Build guidance text based on lane
+                const guidance = {
+                  flush:     `建議：清一色(${suitLabel}) — 留${suitLabel}，打其他`,
+                  halfFlush: `建議：混一色(${suitLabel}) — 留${suitLabel}及字牌`,
+                  triplet:   '建議：對對胡 — 留對子，碰刻子',
+                  pingHu:    '建議：平糊 — 留順子，避開字牌',
+                  dragon:    '建議：三元牌 — 留中發白',
+                  winds:     '建議：四喜 — 留風牌刻子',
+                  orphan:    '建議：十三么 — 留一九字牌',
+                  defensive: '建議：保守 — 打已出現的牌',
+                }[lane] || '';
+                if (!guidance) return null;
+                return <span className="hint-strategy-text">{guidance}</span>;
               })()}
-              {hint.shanten===1&&hint.discardAnalysis.some(d=>d.leadsToTenpai)&&(()=>{
-                const best = hint.discardAnalysis.filter(d=>d.isBestDiscard&&d.leadsToTenpai);
-                if(!best.length) return null;
-                const maxWins = Math.max(...best.map(d=>d.tenpai.reduce((s,w)=>s+w.remaining,0)));
-                return <span className="hint-best-text">
-                  打 <strong>{best.map(d=>TILE_DISPLAY[d.tile.key]).join(' 或 ')}</strong> 可聽牌 · 等{maxWins}張
-                </span>;
-              })()}
-              {hint.shanten===1&&!hint.discardAnalysis.some(d=>d.leadsToTenpai)&&(()=>{
-                const best = hint.discardAnalysis.filter(d=>d.isBestDiscard);
-                return <span style={{fontSize:'.7rem',color:'var(--dim)'}}>
-                  建議打 <strong style={{color:'var(--gold-lt)'}}>{best.map(d=>TILE_DISPLAY[d.tile.key]).join(' 或 ')}</strong>
-                </span>;
-              })()}
-              {hint.shanten>1&&(()=>{
-                const best = hint.discardAnalysis.filter(d=>d.isBestDiscard);
-                return <span style={{fontSize:'.7rem',color:'var(--dim)'}}>
-                  建議打 <strong style={{color:'var(--gold-lt)'}}>{best.map(d=>TILE_DISPLAY[d.tile.key]).join(' 或 ')}</strong>
-                </span>;
-              })()}
-              {hint.hints.map((h,i)=><span key={i} className="hint-tag">{h}</span>)}
+              {/* Tenpai count when listening */}
+              {hint.shanten===0&&hint.totalRemaining>0&&(
+                <span className="hint-wait-count">等 <strong>{hint.totalRemaining}</strong> 張</span>
+              )}
+              {/* Show marker legend */}
+              {hint.shanten>=0&&(
+                <span className="hint-legend">
+                  <span className="hint-crown-small">★</span>打出可進步
+                  {hint.shanten===1&&hint.discardAnalysis.some(d=>d.leadsToTenpai)&&
+                    <> · <span className="hint-dot-small">●</span>打出可聽牌</>}
+                </span>
+              )}
+              {hint.hints.filter(h=>h!=='對對胡'&&h!=='清一色').map((h,i)=><span key={i} className="hint-tag">{h}</span>)}
             </div>
           )}
 
