@@ -388,6 +388,8 @@ export function scanBestLane(tiles, melds, seatWind, roundWind, minFan = 3) {
   // Half flush: one suit + honours
   const honourCt = tiles.filter(t=>!Object.keys(suitCt).some(s=>t.key.startsWith(s)&&/\d$/.test(t.key))).length;
   scores['halfFlush'] = maxSuit>=5&&honourCt>=2 ? maxSuit*10 + honourCt*8 - 40 : -99;
+  // All honours (字一色): only honour tiles
+  scores['allHonours'] = honourCt >= 8 ? honourCt*15 - 60 : (honourCt >= 5 ? honourCt*8 - 50 : -99);
 
   // 平糊 + 門前清: all chows, no honours, concealed
   const hasHonourTile = tiles.some(t=>['east','south','west','north','chun','hatsu','haku'].includes(t.key));
@@ -404,7 +406,7 @@ export function scanBestLane(tiles, melds, seatWind, roundWind, minFan = 3) {
 
   // Rank all lanes
   // Filter to only valid HK lanes
-  const validLanes = ['flush','halfFlush','triplet','pingHu','dragon','winds','orphan','defensive'];
+  const validLanes = ['flush','halfFlush','allHonours','triplet','pingHu','dragon','winds','orphan','defensive'];
   const filteredScores = Object.fromEntries(Object.entries(scores).filter(([k])=>validLanes.includes(k)));
   const ranked = Object.entries(filteredScores).sort((a,b)=>b[1]-a[1]);
 
@@ -427,15 +429,14 @@ export function scanBestLane(tiles, melds, seatWind, roundWind, minFan = 3) {
 }
 
 export const LANE_LABELS = {
-  flush:     '清一色',
-  halfFlush: '混一色',
-  triplet:   '對對胡',
-  pingHu:    '平糊',
-  dragon:    '大三元',
-  winds:     '大四喜',
-  orphan:    '十三么',
-  defensive: '保守打法',
-  balanced:  '均衡',
-  value:     '番牌優先',
-  speed:     '速攻聽牌',
+  flush:      '清一色',
+  halfFlush:  '混一色',
+  allHonours: '字一色',
+  triplet:    '對對胡',
+  pingHu:     '平糊',
+  orphan:     '十三么',
+  defensive:  '保守打法',
+  balanced:   '均衡',
+  value:      '番牌優先',
+  speed:      '速攻聽牌',
 };

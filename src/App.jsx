@@ -18,7 +18,6 @@ const SUIT_LABEL = { man:'萬', pin:'筒', sou:'索' };
 
 // ─── Tile SVG art — authentic HK Mahjong ────────────────────────────────────
 const CN_NUM = ['一','二','三','四','五','六','七','八','九'];
-// 東南西北 all in blue, 中=red, 發=green, 白=blue frame
 const HONOUR_COLOR = {
   east:'#1a6ea8', south:'#1a6ea8', west:'#1a6ea8', north:'#1a6ea8',
   chun:'#c0392b', hatsu:'#27ae60', haku:'#1a6ea8',
@@ -28,10 +27,11 @@ const FLOWER_COLOR = {
   spring:'#27ae60', summer:'#d35400', autumn:'#c0392b', winter:'#2980b9',
 };
 
-// ── 筒 (dots) ─────────────────────────────────────────────────────────────────
-// 6筒: 2 cols × 3 rows — bottom 2 red, mid 2 red, top 2 green
-// 7筒: same 2×2 red base as 6筒 bottom-4, plus 3 green DIAGONAL top-left→bottom-right on top
-// 8筒: 2 cols × 4 rows, all blue, same column spacing as 6/7筒
+// ── 筒 dots ───────────────────────────────────────────────────────────────────
+// Colours per dot, bottom→top, L→R within each row
+// 6筒: 2 cols × 3 rows — bottom 4 red (rows 1+2), top 2 green (row 3)
+// 7筒: same 4-red base as 6筒 rows 1+2, then 3 green DIAGONAL TL→C→BR on top
+// 8筒: 2 cols × 4 rows, all blue
 const P_COL = {
   1: ['#c0392b'],
   2: ['#1a6ea8','#27ae60'],
@@ -39,18 +39,13 @@ const P_COL = {
   4: ['#1a6ea8','#27ae60','#27ae60','#1a6ea8'],
   5: ['#1a6ea8','#27ae60','#c0392b','#27ae60','#1a6ea8'],
   6: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60'],
-  // 7: 4 red (same positions as 6筒 bottom 4) + 3 green diagonal TL→BR
   7: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60','#27ae60'],
   8: ['#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8'],
   9: ['#27ae60','#27ae60','#27ae60','#c0392b','#c0392b','#c0392b','#1a6ea8','#1a6ea8','#1a6ea8'],
 };
 
-// Column x coords for 6筒 style: left=34, right=66
-// Row y coords for 6筒: bot=76, mid=50, top=24
-// 7筒: 4 red at same positions as 6筒 rows 1+2 (bot+mid), 
-//      3 green diagonal: TL(28,24) → C(50,50) → BR(72,76) but inside 6筒 row pattern
-//      Exactly: green at (34,24), (50,50), (66,76) — diagonal through 6筒 top-L, centre, bot-R
-// 8筒: same columns (34,66), 4 rows at y=80,58,36,14
+// 6筒 cols x=34,66; rows y=76(B),50(M),24(T)
+// 7筒: 4 red at same positions as 6筒 B+M rows, then green diagonal TL(34,24)→C(50,50)→BR(66,76)
 const P_POS = {
   1: [[50,50]],
   2: [[50,71],[50,29]],
@@ -58,8 +53,7 @@ const P_POS = {
   4: [[34,71],[66,71],[34,29],[66,29]],
   5: [[34,74],[66,74],[50,50],[34,26],[66,26]],
   6: [[34,76],[66,76],[34,50],[66,50],[34,24],[66,24]],
-  // 7: red at same 4 positions as 6筒 bottom+mid, green diagonal overlay
-  7: [[34,76],[66,76],[34,50],[66,50],  [34,24],[50,50],[66,76]],
+  7: [[34,76],[66,76],[34,50],[66,50],[34,24],[50,50],[66,76]],
   8: [[34,80],[66,80],[34,58],[66,58],[34,36],[66,36],[34,14],[66,14]],
   9: [[26,80],[50,80],[74,80],[26,50],[50,50],[74,50],[26,20],[50,20],[74,20]],
 };
@@ -83,51 +77,45 @@ function PinFace({ n, isSmall }) {
   );
 }
 
-// ── 索 (bamboo) ───────────────────────────────────────────────────────────────
-// Standard HK mahjong bamboo layout:
-// 6索: 2 columns × 3 rows, tall sticks filling the tile height
-// 7索: 1 red stick on top centre + 2 col × 3 rows below (6 green) = 7
-// 8索: 2 columns × 4 rows, all green, tall sticks
-// Sticks are tall, narrow, with bamboo node at centre
+// ── 索 bamboo ─────────────────────────────────────────────────────────────────
+// Real HK bamboo tile layout (verified from screenshots):
+// Sticks are TALL and NARROW, two columns
+// 6索: L col x=36, R col x=64, rows y=17,50,83 — 3 rows × 2 cols = 6 sticks, all green
+// 7索: 1 RED stick at top-centre (x=50,y=13), then 3 rows × 2 cols below = 6 green
+// 8索: 4 rows × 2 cols (x=36,64; y=12,37,63,88), all green
+
 const S_COL = {
   2: ['#2e8b3a','#2e8b3a'],
   3: ['#2e8b3a','#2e8b3a','#2e8b3a'],
   4: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
   5: ['#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#2e8b3a'],
   6: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
-  // 7: red top-centre first, then 2 cols of 3
   7: ['#c0392b','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
   8: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
   9: ['#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#c0392b','#2e8b3a'],
 };
 
-// Bamboo positions — tall sticks spanning tile height
-// For 2-col tiles: left col at x=35, right col at x=65
-// For 3-col tiles: x=25,50,75
-// Row spacing fills viewbox: for 3-row = y=18,50,82; for 4-row = y=12,37,63,88
 const S_POS = {
   2:  [[50,28],[50,72]],
   3:  [[50,18],[35,72],[65,72]],
-  4:  [[35,27],[65,27],[35,73],[65,73]],
-  5:  [[35,21],[50,50],[35,79],[65,21],[65,79]],
-  6:  [[35,18],[65,18],[35,50],[65,50],[35,82],[65,82]],
-  // 7: 1 red top-centre + 3-row 2-col below
-  7:  [[50,12],[35,38],[65,38],[35,63],[65,63],[35,88],[65,88]],
-  // 8: 2 cols × 4 rows
-  8:  [[35,12],[65,12],[35,37],[65,37],[35,63],[65,63],[35,88],[65,88]],
-  9:  [[25,18],[50,18],[75,18],[25,50],[50,50],[75,50],[25,82],[50,82],[75,82]],
+  4:  [[36,27],[64,27],[36,73],[64,73]],
+  5:  [[36,21],[50,50],[36,79],[64,21],[64,79]],
+  // 6: L=36 R=64, 3 rows at y=17,50,83
+  6:  [[36,17],[64,17],[36,50],[64,50],[36,83],[64,83]],
+  // 7: RED top-centre, then 3 rows × 2 cols below (y=35,58,82)
+  7:  [[50,13],[36,35],[64,35],[36,58],[64,58],[36,82],[64,82]],
+  // 8: 4 rows × 2 cols
+  8:  [[36,12],[64,12],[36,37],[64,37],[36,63],[64,63],[36,88],[64,88]],
+  9:  [[25,17],[50,17],[75,17],[25,50],[50,50],[75,50],[25,83],[50,83],[75,83]],
 };
 
 function BambooStick({ cx, cy, w, h, color }) {
   const dark = color==='#2e8b3a'?'#1a5422':color==='#c0392b'?'#7a1208':'#0d3060';
   return (
     <g transform={`translate(${cx},${cy})`}>
-      {/* Stick body */}
       <rect x={-w/2} y={-h/2} width={w} height={h} rx={w*0.38} fill={color}/>
-      {/* Node ring at centre */}
-      <rect x={-w/2-1} y={-1.8} width={w+2} height={3.6} rx={1.8} fill={dark}/>
-      {/* Highlight stripe */}
-      <rect x={-w/2+1.2} y={-h/2+2.5} width={w*0.28} height={h-5} rx={0.7} fill="rgba(255,255,255,0.3)"/>
+      <rect x={-w/2-0.6} y={-1.5} width={w+1.2} height={3} rx={1.5} fill={dark}/>
+      <rect x={-w/2+1} y={-h/2+2.5} width={w*0.28} height={h-5} rx={0.7} fill="rgba(255,255,255,0.3)"/>
     </g>
   );
 }
@@ -171,12 +159,11 @@ function ManFace({ n, isSmall }) {
 }
 function HonourFace({ tkey, isSmall }) {
   if (tkey === 'haku') {
-    // 白板: blank white board with blue border frame
-    const pad = isSmall ? 2 : 4;
+    // 白板: tall rectangle with blue double border, no character — like a whiteboard
     return (
       <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-        <rect x={12} y={12} width={76} height={76} rx={6} fill="white" stroke="#1a6ea8" strokeWidth={5}/>
-        <rect x={18} y={18} width={64} height={64} rx={3} fill="none" stroke="#1a6ea8" strokeWidth={2}/>
+        <rect x={10} y={8} width={80} height={84} rx={5} fill="white" stroke="#1a6ea8" strokeWidth={5}/>
+        <rect x={16} y={14} width={68} height={72} rx={3} fill="none" stroke="#1a6ea8" strokeWidth={2}/>
       </svg>
     );
   }
@@ -254,8 +241,8 @@ function Tile({ tile, selected, drawn, small, inDiscard, highlighted, dimmed, hi
     <div className={cn} onClick={onClick} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
       title={TILE_DISPLAY[tile.key]||tile.key}>
       <TileFace tkey={tile.key} isSmall={small}/>
-      {hintBest && <div className="hint-banner hint-banner-best">★ 建議</div>}
-      {hint && !hintBest && <div className="hint-banner hint-banner-ok">聽牌</div>}
+      {hintBest && <div className="hint-banner hint-banner-best">建議打出</div>}
+      {hint && !hintBest && <div className="hint-banner hint-banner-ok">打→聽牌</div>}
       {danger===3 && !small && <div className="danger-badge">⚠</div>}
       {danger===0 && !small && <div className="safe-badge">✓</div>}
     </div>
@@ -682,42 +669,49 @@ const SUIT_CHARS = { man:'萬', pin:'筒', sou:'索' };
 
 function StrategyPanel({ tiles, melds, seatWind, roundWind, minFan, chosenLane, onChoose }) {
   const scan = tiles.length > 0 ? scanBestLane(tiles, melds, seatWind, roundWind, minFan) : null;
-  const lanes = ['flush','halfFlush','triplet','pingHu','dragon','winds','orphan'];
 
-  // Determine dominant suit for flush/halfFlush lanes
+  // Determine dominant suit for flush/halfFlush labels
   const suitCt = { man:0, pin:0, sou:0 };
   for (const t of tiles) {
     for (const s of ['man','pin','sou']) if (t.key.startsWith(s) && /\d$/.test(t.key)) suitCt[s]++;
   }
-  const domSuit = Object.entries(suitCt).sort((a,b)=>b[1]-a[1])[0]?.[0];
+  const domSuit = Object.entries(suitCt).sort((a,b)=>b[1]-a[1])[0]?.[0] || 'man';
+  const suitChar = SUIT_CHARS[domSuit] || '';
+
+  // All valid HK lanes ranked by scan score (best first), remove 大三元/大四喜
+  const ALL_LANES = ['flush','halfFlush','allHonours','triplet','pingHu','orphan'];
 
   function laneLabel(lane) {
-    if ((lane==='flush'||lane==='halfFlush') && domSuit && suitCt[domSuit]>0) {
-      return (LANE_LABELS[lane]||lane) + '(' + SUIT_CHARS[domSuit] + ')';
-    }
-    return LANE_LABELS[lane]||lane;
+    if (lane==='flush')     return `清一色(${suitChar})`;
+    if (lane==='halfFlush') return `混一色(${suitChar})`;
+    if (lane==='allHonours')return '字一色';
+    return LANE_LABELS[lane] || lane;
   }
+
+  // Sort lanes best→worst based on scan scores, keep fixed order if no scan
+  const laneOrder = scan
+    ? [...ALL_LANES].sort((a,b) => {
+        const sa = scan.ranked?.find(r=>r.lane===a)?.score ?? -999;
+        const sb = scan.ranked?.find(r=>r.lane===b)?.score ?? -999;
+        return sb - sa;
+      })
+    : ALL_LANES;
 
   return (
     <div className="strategy-panel">
-      <div className="strategy-panel-title">牌路策略</div>
-      {scan && (
-        <div className="strategy-scan">
-          <span style={{fontSize:'.68rem',color:'var(--dim)'}}>建議：</span>
-          <span className="strategy-best-badge">{laneLabel(scan.best)}</span>
-        </div>
-      )}
+      <div className="strategy-panel-title">牌路策略（點選選擇）</div>
       <div className="strategy-lane-list">
-        {lanes.map(lane=>{
-          const score = scan?.ranked?.find(r=>r.lane===lane)?.score??0;
+        {laneOrder.map((lane, rank) => {
           const isChosen = chosenLane===lane;
           const isBest = scan?.best===lane;
+          const rankLabel = rank===0?'首':`${rank+1}`;
           return (
             <button key={lane}
               className={`strategy-lane-btn${isChosen?' chosen':''}${isBest?' best':''}`}
               onClick={()=>onChoose(lane===chosenLane?null:lane)}>
+              {isBest && <span className="sl-rank-best">推</span>}
               <span className="sl-name">{laneLabel(lane)}</span>
-              <span className="sl-score" style={{color:score>20?'#27ae60':score<-20?'#e74c3c':'var(--dim)'}}>{score>0?'+'+score:score}</span>
+              {isChosen && !isBest && <span className="sl-chosen-mark">✓</span>}
             </button>
           );
         })}
@@ -1194,14 +1188,13 @@ export default function App() {
                 if (!lane || !scan) return null;
                 // Build guidance text based on lane
                 const guidance = {
-                  flush:     `建議：清一色(${suitLabel}) — 留${suitLabel}，打其他`,
-                  halfFlush: `建議：混一色(${suitLabel}) — 留${suitLabel}及字牌`,
-                  triplet:   '建議：對對胡 — 留對子，碰刻子',
-                  pingHu:    '建議：平糊 — 留順子，避開字牌',
-                  dragon:    '建議：三元牌 — 留中發白',
-                  winds:     '建議：四喜 — 留風牌刻子',
-                  orphan:    '建議：十三么 — 留一九字牌',
-                  defensive: '建議：保守 — 打已出現的牌',
+                  flush:      `建議：清一色(${suitLabel}) — 留${suitLabel}，打其他`,
+                  halfFlush:  `建議：混一色(${suitLabel}) — 留${suitLabel}及字牌`,
+                  allHonours: '建議：字一色 — 留字牌，打數牌',
+                  triplet:    '建議：對對胡 — 留對子，碰刻子',
+                  pingHu:     '建議：平糊 — 留順子，避開字牌',
+                  orphan:     '建議：十三么 — 留一九字牌',
+                  defensive:  '建議：保守 — 打已出現的牌',
                 }[lane] || '';
                 if (!guidance) return null;
                 return <span className="hint-strategy-text">{guidance}</span>;

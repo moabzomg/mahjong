@@ -607,3 +607,20 @@ body{background:var(--felt-dark);color:var(--text);font-family:'Segoe UI','Noto 
   font-weight: 900;
   font-size: 0.75rem;
 }
+
+/* Strategy panel rank badges */
+.sl-rank-best {
+  background: var(--gold);
+  color: #000;
+  font-size: 0.58rem;
+  font-weight: 900;
+  padding: 0 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.sl-chosen-mark {
+  color: var(--gold);
+  font-weight: 900;
+  font-size: 0.7rem;
+  margin-left: auto;
+}
