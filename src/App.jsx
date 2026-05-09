@@ -16,60 +16,61 @@ const WIND_LABELS = ['東','南','西','北'];
 const FLOWER_NAMES = { plum:'梅',orchid:'蘭',chrysanthemum:'菊',bamboo:'竹',spring:'春',summer:'夏',autumn:'秋',winter:'冬' };
 const SUIT_LABEL = { man:'萬', pin:'筒', sou:'索' };
 
-// ─── Tile SVG art — authentic HK Mahjong ────────────────────────────────────
+// ─── Tile SVG art — authentic HK Mahjong (verified from screenshots) ────────
 const CN_NUM = ['一','二','三','四','五','六','七','八','九'];
+// From screenshots: 東南西北 = large black chars; 中=red; 發=green; 白=blue-bordered blank
 const HONOUR_COLOR = {
-  east:'#1a6ea8', south:'#1a6ea8', west:'#1a6ea8', north:'#1a6ea8',
-  chun:'#c0392b', hatsu:'#27ae60', haku:'#1a6ea8',
+  east:'#111', south:'#111', west:'#111', north:'#111',
+  chun:'#c0392b', hatsu:'#1a7a3c', haku:'#1a6ea8',
 };
 const FLOWER_COLOR = {
-  plum:'#c0392b', orchid:'#8e44ad', chrysanthemum:'#d35400', bamboo:'#27ae60',
-  spring:'#27ae60', summer:'#d35400', autumn:'#c0392b', winter:'#2980b9',
+  plum:'#c0392b', orchid:'#8e44ad', chrysanthemum:'#d35400', bamboo:'#1a7a3c',
+  spring:'#1a7a3c', summer:'#d35400', autumn:'#c0392b', winter:'#2980b9',
 };
 
 // ── 筒 dots ───────────────────────────────────────────────────────────────────
-// Colours per dot, bottom→top, L→R within each row
-// 6筒: 2 cols × 3 rows — bottom 4 red (rows 1+2), top 2 green (row 3)
-// 7筒: same 4-red base as 6筒 rows 1+2, then 3 green DIAGONAL TL→C→BR on top
+// Colours bottom→top, L→R. Green = #1a7a3c (dark green from screenshots)
+// 6筒: BL,BR,ML,MR=red; TL,TR=green
+// 7筒: 4 green CORNERS, then 3 red diagonal TL→C→BR drawn ON TOP
 // 8筒: 2 cols × 4 rows, all blue
+// 9筒: bottom row=green×3, mid=red×3, top=blue×3
 const P_COL = {
   1: ['#c0392b'],
-  2: ['#1a6ea8','#27ae60'],
-  3: ['#1a6ea8','#c0392b','#27ae60'],
-  4: ['#1a6ea8','#27ae60','#27ae60','#1a6ea8'],
-  5: ['#1a6ea8','#27ae60','#c0392b','#27ae60','#1a6ea8'],
-  6: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60'],
-  7: ['#c0392b','#c0392b','#c0392b','#c0392b','#27ae60','#27ae60','#27ae60'],
+  2: ['#1a6ea8','#1a7a3c'],
+  3: ['#1a6ea8','#c0392b','#1a7a3c'],
+  4: ['#1a6ea8','#1a7a3c','#1a7a3c','#1a6ea8'],
+  5: ['#1a6ea8','#1a7a3c','#c0392b','#1a7a3c','#1a6ea8'],
+  6: ['#c0392b','#c0392b','#c0392b','#c0392b','#1a7a3c','#1a7a3c'],
+  7: ['#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#c0392b','#c0392b','#c0392b'],
   8: ['#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8'],
-  9: ['#27ae60','#27ae60','#27ae60','#c0392b','#c0392b','#c0392b','#1a6ea8','#1a6ea8','#1a6ea8'],
+  9: ['#1a7a3c','#1a7a3c','#1a7a3c','#c0392b','#c0392b','#c0392b','#1a6ea8','#1a6ea8','#1a6ea8'],
 };
-
-// 6筒 cols x=34,66; rows y=76(B),50(M),24(T)
-// 7筒: 4 red at same positions as 6筒 B+M rows, then green diagonal TL(34,24)→C(50,50)→BR(66,76)
+// 6筒: cols x=34,66; rows y=78(B),50(M),22(T)
+// 7筒: green corners [BL,BR,TL,TR] then red diagonal [near-TL, C, near-BR]
 const P_POS = {
   1: [[50,50]],
-  2: [[50,71],[50,29]],
-  3: [[32,74],[50,50],[68,26]],
-  4: [[34,71],[66,71],[34,29],[66,29]],
-  5: [[34,74],[66,74],[50,50],[34,26],[66,26]],
-  6: [[34,76],[66,76],[34,50],[66,50],[34,24],[66,24]],
-  7: [[34,76],[66,76],[34,50],[66,50],[34,24],[50,50],[66,76]],
-  8: [[34,80],[66,80],[34,58],[66,58],[34,36],[66,36],[34,14],[66,14]],
-  9: [[26,80],[50,80],[74,80],[26,50],[50,50],[74,50],[26,20],[50,20],[74,20]],
+  2: [[50,72],[50,28]],
+  3: [[32,75],[50,50],[68,25]],
+  4: [[34,72],[66,72],[34,28],[66,28]],
+  5: [[34,75],[66,75],[50,50],[34,25],[66,25]],
+  6: [[34,78],[66,78],[34,50],[66,50],[34,22],[66,22]],
+  7: [[34,78],[66,78],[34,22],[66,22], [40,28],[50,50],[60,72]],
+  8: [[34,82],[66,82],[34,60],[66,60],[34,38],[66,38],[34,16],[66,16]],
+  9: [[26,82],[50,82],[74,82],[26,50],[50,50],[74,50],[26,18],[50,18],[74,18]],
 };
 
 function PinDot({ cx, cy, r, color }) {
   return (
     <g>
-      <circle cx={cx} cy={cy} r={r} fill="#ede8d0" stroke={color} strokeWidth={r*0.18}/>
-      <circle cx={cx} cy={cy} r={r*0.44} fill={color}/>
-      <circle cx={cx-r*0.2} cy={cy-r*0.2} r={r*0.14} fill="rgba(255,255,255,0.62)"/>
+      <circle cx={cx} cy={cy} r={r} fill="#ebe4c8" stroke={color} strokeWidth={r*0.22}/>
+      <circle cx={cx} cy={cy} r={r*0.46} fill={color}/>
+      <circle cx={cx-r*0.22} cy={cy-r*0.22} r={r*0.15} fill="rgba(255,255,255,0.55)"/>
     </g>
   );
 }
 function PinFace({ n, isSmall }) {
-  const pos = P_POS[n] || [], col = P_COL[n] || [];
-  const r = isSmall ? 8.5 : 10.5;
+  const pos = P_POS[n]||[], col = P_COL[n]||[];
+  const r = isSmall ? 8 : 10;
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
       {pos.map(([cx,cy],i) => <PinDot key={i} cx={cx} cy={cy} r={r} color={col[i]||'#1a6ea8'}/>)}
@@ -78,52 +79,82 @@ function PinFace({ n, isSmall }) {
 }
 
 // ── 索 bamboo ─────────────────────────────────────────────────────────────────
-// Real HK bamboo tile layout (verified from screenshots):
-// Sticks are TALL and NARROW, two columns
-// 6索: L col x=36, R col x=64, rows y=17,50,83 — 3 rows × 2 cols = 6 sticks, all green
-// 7索: 1 RED stick at top-centre (x=50,y=13), then 3 rows × 2 cols below = 6 green
-// 8索: 4 rows × 2 cols (x=36,64; y=12,37,63,88), all green
-
+// From screenshots: sticks are VERY tall rounded rods, paired in 2 columns
+// 5索: LT, RED-centre, LB, RT, RB (red centre stick)
+// 7索: 1 red top-centre, then 3 rows × 2 cols green = 7 total
+// 8索: Two chevrons — top ∧ shape (4 sticks angled up) + bottom ∨ shape (4 angled down)
+//   From image 8: the 8-bamboo looks like "WW" = two M shapes stacked
+//   Simplified: outer sticks diagonal, inner sticks nearly vertical forming W+M
+// 9索: 3 cols L=green, M=red, R=green
 const S_COL = {
-  2: ['#2e8b3a','#2e8b3a'],
-  3: ['#2e8b3a','#2e8b3a','#2e8b3a'],
-  4: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
-  5: ['#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#2e8b3a'],
-  6: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
-  7: ['#c0392b','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
-  8: ['#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a','#2e8b3a'],
-  9: ['#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#c0392b','#2e8b3a','#2e8b3a','#c0392b','#2e8b3a'],
+  2: ['#1a7a3c','#1a7a3c'],
+  3: ['#1a7a3c','#1a7a3c','#1a7a3c'],
+  4: ['#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'],
+  5: ['#1a7a3c','#c0392b','#1a7a3c','#1a7a3c','#1a7a3c'],
+  6: ['#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'],
+  7: ['#c0392b','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'],
+  9: ['#1a7a3c','#c0392b','#1a7a3c','#1a7a3c','#c0392b','#1a7a3c','#1a7a3c','#c0392b','#1a7a3c'],
 };
-
 const S_POS = {
   2:  [[50,28],[50,72]],
-  3:  [[50,18],[35,72],[65,72]],
+  3:  [[50,18],[36,72],[64,72]],
   4:  [[36,27],[64,27],[36,73],[64,73]],
   5:  [[36,21],[50,50],[36,79],[64,21],[64,79]],
-  // 6: L=36 R=64, 3 rows at y=17,50,83
   6:  [[36,17],[64,17],[36,50],[64,50],[36,83],[64,83]],
-  // 7: RED top-centre, then 3 rows × 2 cols below (y=35,58,82)
-  7:  [[50,13],[36,35],[64,35],[36,58],[64,58],[36,82],[64,82]],
-  // 8: 4 rows × 2 cols
-  8:  [[36,12],[64,12],[36,37],[64,37],[36,63],[64,63],[36,88],[64,88]],
+  7:  [[50,12],[36,36],[64,36],[36,59],[64,59],[36,83],[64,83]],
   9:  [[25,17],[50,17],[75,17],[25,50],[50,50],[75,50],[25,83],[50,83],[75,83]],
 };
 
 function BambooStick({ cx, cy, w, h, color }) {
-  const dark = color==='#2e8b3a'?'#1a5422':color==='#c0392b'?'#7a1208':'#0d3060';
+  const dark = color==='#1a7a3c'?'#0d4a1e':'#7a1208';
   return (
     <g transform={`translate(${cx},${cy})`}>
       <rect x={-w/2} y={-h/2} width={w} height={h} rx={w*0.38} fill={color}/>
-      <rect x={-w/2-0.6} y={-1.5} width={w+1.2} height={3} rx={1.5} fill={dark}/>
-      <rect x={-w/2+1} y={-h/2+2.5} width={w*0.28} height={h-5} rx={0.7} fill="rgba(255,255,255,0.3)"/>
+      <rect x={-w/2-0.7} y={-1.5} width={w+1.4} height={3} rx={1.5} fill={dark}/>
+      <rect x={-w/2+1} y={-h/2+2.5} width={w*0.28} height={h-5} rx={0.7} fill="rgba(255,255,255,0.28)"/>
     </g>
   );
 }
 
+// 8索: W+M chevron pattern — render as pairs of diagonal sticks
+// Top half: inverted-V ∧ (4 sticks forming peak)
+// Bottom half: V ∨ (4 sticks forming valley)
+function Sou8Face({ isSmall }) {
+  const g = '#1a7a3c', d = '#0d4a1e';
+  const w = isSmall ? 6 : 9;
+  // Top ∧ (inverted M): left-outer going up-left, left-inner going up-right,
+  //                      right-inner going up-left, right-outer going up-right
+  function Stick({ x1,y1,x2,y2 }) {
+    const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+    const ang=Math.atan2(dy,dx)*180/Math.PI;
+    const cx=(x1+x2)/2,cy=(y1+y2)/2;
+    return (
+      <g transform={`translate(${cx},${cy}) rotate(${ang+90})`}>
+        <rect x={-w/2} y={-len/2} width={w} height={len} rx={w*0.38} fill={g}/>
+        <rect x={-w/2-0.5} y={-1.2} width={w+1} height={2.4} rx={1.2} fill={d}/>
+        <rect x={-w/2+1} y={-len/2+2} width={w*0.28} height={len-4} rx={0.6} fill="rgba(255,255,255,0.26)"/>
+      </g>
+    );
+  }
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
+      {/* Top ∧ — 4 sticks peak at top-centre */}
+      <Stick x1={20} y1={48} x2={50} y2={14}/>
+      <Stick x1={80} y1={48} x2={50} y2={14}/>
+      <Stick x1={20} y1={48} x2={36} y2={34}/>
+      <Stick x1={80} y1={48} x2={64} y2={34}/>
+      {/* Bottom ∨ — 4 sticks valley at bottom-centre */}
+      <Stick x1={20} y1={52} x2={50} y2={86}/>
+      <Stick x1={80} y1={52} x2={50} y2={86}/>
+      <Stick x1={20} y1={52} x2={36} y2={66}/>
+      <Stick x1={80} y1={52} x2={64} y2={66}/>
+    </svg>
+  );
+}
+
 function SouFace({ n, isSmall }) {
-  const sw = isSmall ? 7 : 10;
-  const sh = isSmall ? 22 : 30;
-  if (n === 1) {
+  const sw = isSmall ? 7 : 10, sh = isSmall ? 22 : 30;
+  if (n===1) {
     return (
       <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
         <line x1={25} y1={78} x2={75} y2={70} stroke="#5a3a10" strokeWidth={3} strokeLinecap="round"/>
@@ -134,36 +165,38 @@ function SouFace({ n, isSmall }) {
         <circle cx={66} cy={43} r={2.5} fill="white"/>
         <circle cx={67} cy={43} r={1.2} fill="#111"/>
         <polygon points="71,46 78,43 71,49" fill="#d4a020"/>
-        <path d="M33,58 Q15,42 17,26" stroke="#27ae60" strokeWidth={3} fill="none" strokeLinecap="round"/>
+        <path d="M33,58 Q15,42 17,26" stroke="#1a7a3c" strokeWidth={3} fill="none" strokeLinecap="round"/>
         <path d="M32,61 Q12,54 14,42" stroke="#2980b9" strokeWidth={2.5} fill="none" strokeLinecap="round"/>
         <path d="M34,63 Q16,66 18,55" stroke="#c0392b" strokeWidth={2.5} fill="none" strokeLinecap="round"/>
       </svg>
     );
   }
-  const pos = S_POS[n] || [], col = S_COL[n] || [];
+  if (n===8) return <Sou8Face isSmall={isSmall}/>;
+  const pos=S_POS[n]||[], col=S_COL[n]||[];
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-      {pos.map(([cx,cy],i) => <BambooStick key={i} cx={cx} cy={cy} w={sw} h={sh} color={col[i]||'#2e8b3a'}/>)}
+      {pos.map(([cx,cy],i)=><BambooStick key={i} cx={cx} cy={cy} w={sw} h={sh} color={col[i]||'#1a7a3c'}/>)}
     </svg>
   );
 }
 
 function ManFace({ n, isSmall }) {
-  const sz = isSmall ? '0.72em' : '1.05em';
+  // From screenshots: large black bold character, red 萬 below, equal size
+  const sz = isSmall ? '0.78em' : '1.18em';
   return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:0,lineHeight:1}}>
-      <span style={{fontSize:sz,fontWeight:800,color:'#1a6ea8'}}>{CN_NUM[n-1]}</span>
-      <span style={{fontSize:sz,color:'#c0392b',fontWeight:800}}>萬</span>
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:0,lineHeight:1.05}}>
+      <span style={{fontSize:sz,fontWeight:900,color:'#111'}}>{CN_NUM[n-1]}</span>
+      <span style={{fontSize:sz,color:'#c0392b',fontWeight:900}}>萬</span>
     </div>
   );
 }
 function HonourFace({ tkey, isSmall }) {
   if (tkey === 'haku') {
-    // 白板: tall rectangle with blue double border, no character — like a whiteboard
+    // 白板: from screenshots — thin tall white rectangle with blue double border only
     return (
       <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-        <rect x={10} y={8} width={80} height={84} rx={5} fill="white" stroke="#1a6ea8" strokeWidth={5}/>
-        <rect x={16} y={14} width={68} height={72} rx={3} fill="none" stroke="#1a6ea8" strokeWidth={2}/>
+        <rect x={14} y={6} width={72} height={88} rx={4} fill="white" stroke="#1a6ea8" strokeWidth={5}/>
+        <rect x={20} y={12} width={60} height={76} rx={2} fill="none" stroke="#1a6ea8" strokeWidth={2.5}/>
       </svg>
     );
   }
@@ -670,7 +703,6 @@ const SUIT_CHARS = { man:'萬', pin:'筒', sou:'索' };
 function StrategyPanel({ tiles, melds, seatWind, roundWind, minFan, chosenLane, onChoose }) {
   const scan = tiles.length > 0 ? scanBestLane(tiles, melds, seatWind, roundWind, minFan) : null;
 
-  // Determine dominant suit for flush/halfFlush labels
   const suitCt = { man:0, pin:0, sou:0 };
   for (const t of tiles) {
     for (const s of ['man','pin','sou']) if (t.key.startsWith(s) && /\d$/.test(t.key)) suitCt[s]++;
@@ -678,17 +710,16 @@ function StrategyPanel({ tiles, melds, seatWind, roundWind, minFan, chosenLane, 
   const domSuit = Object.entries(suitCt).sort((a,b)=>b[1]-a[1])[0]?.[0] || 'man';
   const suitChar = SUIT_CHARS[domSuit] || '';
 
-  // All valid HK lanes ranked by scan score (best first), remove 大三元/大四喜
   const ALL_LANES = ['flush','halfFlush','allHonours','triplet','pingHu','orphan'];
 
   function laneLabel(lane) {
-    if (lane==='flush')     return `清一色(${suitChar})`;
-    if (lane==='halfFlush') return `混一色(${suitChar})`;
-    if (lane==='allHonours')return '字一色';
+    if (lane==='flush')      return `清一色(${suitChar})`;
+    if (lane==='halfFlush')  return `混一色(${suitChar})`;
+    if (lane==='allHonours') return '字一色';
     return LANE_LABELS[lane] || lane;
   }
 
-  // Sort lanes best→worst based on scan scores, keep fixed order if no scan
+  // Rank: positive score first, then zero, then negative — no numbers shown
   const laneOrder = scan
     ? [...ALL_LANES].sort((a,b) => {
         const sa = scan.ranked?.find(r=>r.lane===a)?.score ?? -999;
@@ -697,21 +728,23 @@ function StrategyPanel({ tiles, melds, seatWind, roundWind, minFan, chosenLane, 
       })
     : ALL_LANES;
 
+  const bestLane = scan?.best;
+
   return (
     <div className="strategy-panel">
-      <div className="strategy-panel-title">牌路策略（點選選擇）</div>
+      <div className="strategy-panel-title">牌路策略</div>
       <div className="strategy-lane-list">
-        {laneOrder.map((lane, rank) => {
+        {laneOrder.map((lane) => {
           const isChosen = chosenLane===lane;
-          const isBest = scan?.best===lane;
-          const rankLabel = rank===0?'首':`${rank+1}`;
+          const isBest = bestLane===lane;
+          const score = scan?.ranked?.find(r=>r.lane===lane)?.score ?? -999;
+          const isViable = score >= 0;
           return (
             <button key={lane}
-              className={`strategy-lane-btn${isChosen?' chosen':''}${isBest?' best':''}`}
+              className={`strategy-lane-btn${isChosen?' chosen':''}${isBest?' best':''}${!isViable?' dim':''}`}
               onClick={()=>onChoose(lane===chosenLane?null:lane)}>
               {isBest && <span className="sl-rank-best">推</span>}
               <span className="sl-name">{laneLabel(lane)}</span>
-              {isChosen && !isBest && <span className="sl-chosen-mark">✓</span>}
             </button>
           );
         })}

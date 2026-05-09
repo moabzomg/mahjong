@@ -358,11 +358,13 @@ export function getTenpaiTiles(tiles, melds) {
  */
 export function getTenpaiDetails(tiles, melds, allSeenTiles) {
   const winKeys = getTenpaiTiles(tiles, melds);
+  // Count ALL seen tiles: discards from all players + own melds
+  // Do NOT include own hand tiles in "seen" since they might be the winning tile
   const seenCnt = {};
   for (const t of allSeenTiles) seenCnt[t.key] = (seenCnt[t.key]||0)+1;
-  // Also count tiles in hand and melds
-  for (const t of tiles) seenCnt[t.key] = (seenCnt[t.key]||0)+1;
   for (const m of melds) for (const t of m.tiles) seenCnt[t.key] = (seenCnt[t.key]||0)+1;
+  // Also count own hand tiles that are NOT potential winning tiles
+  for (const t of tiles) seenCnt[t.key] = (seenCnt[t.key]||0)+1;
 
   return winKeys.map(key => ({
     key,
