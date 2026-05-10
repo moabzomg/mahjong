@@ -237,19 +237,19 @@ export function resolveClaimsAI(state, claims, tile, discarder) {
   }
   const kongs=claims.filter(c=>c.type==='kong');
   for (const c of kongs) {
-    const strat=state.session.players[c.player].strategy||'balanced';
+    const strat=state.session.players[c.player].strategy||'auto';
     if (['triplet','dragon','winds','balanced','value'].includes(strat))
       return declareMingKong(state,c.player,tile);
   }
   const pongs=claims.filter(c=>c.type==='pong');
   for (const c of pongs) {
-    const p=c.player,strat=state.session.players[p].strategy||'balanced';
+    const p=c.player,strat=state.session.players[p].strategy||'auto';
     if (aiWantsPong(tile,state.hands[p],state.melds[p],strat,state.seatWinds[p],state.session.round,state.session.minFan,state))
       return executePong(state,p,c.tiles);
   }
   const chis=claims.filter(c=>c.type==='chi');
   for (const c of chis) {
-    const p=c.player,strat=state.session.players[p].strategy||'balanced';
+    const p=c.player,strat=state.session.players[p].strategy||'auto';
     if (aiWantsChi(tile,state.hands[p],state.melds[p],strat,state))
       return executeChi(state,p,c.tiles,tile);
   }
@@ -337,7 +337,7 @@ export function aiTurn(state) {
     // Kong checks
     const hand=state.hands[p], cnt={};
     for(const t of hand) cnt[t.key]=(cnt[t.key]||0)+1;
-    const strat=state.session.players[p].strategy||'balanced';
+    const strat=state.session.players[p].strategy||'auto';
     for(const [key,count] of Object.entries(cnt)) {
       if(count>=4) return declareAnKong(state,p,key);
     }

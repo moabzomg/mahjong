@@ -16,9 +16,8 @@ const WIND_LABELS = ['東','南','西','北'];
 const FLOWER_NAMES = { plum:'梅',orchid:'蘭',chrysanthemum:'菊',bamboo:'竹',spring:'春',summer:'夏',autumn:'秋',winter:'冬' };
 const SUIT_LABEL = { man:'萬', pin:'筒', sou:'索' };
 
-// ─── Tile SVG art — authentic HK Mahjong (verified from screenshots) ────────
+// ─── Tile SVG art ────────────────────────────────────────────────────────────
 const CN_NUM = ['一','二','三','四','五','六','七','八','九'];
-// From screenshots: 東南西北 = large black chars; 中=red; 發=green; 白=blue-bordered blank
 const HONOUR_COLOR = {
   east:'#111', south:'#111', west:'#111', north:'#111',
   chun:'#c0392b', hatsu:'#1a7a3c', haku:'#1a6ea8',
@@ -28,33 +27,31 @@ const FLOWER_COLOR = {
   spring:'#1a7a3c', summer:'#d35400', autumn:'#c0392b', winter:'#2980b9',
 };
 
-// ── 筒 dots ───────────────────────────────────────────────────────────────────
-// Colours bottom→top, L→R. Green = #1a7a3c (dark green from screenshots)
-// 6筒: BL,BR,ML,MR=red; TL,TR=green
-// 7筒: 4 green CORNERS, then 3 red diagonal TL→C→BR drawn ON TOP
-// 8筒: 2 cols × 4 rows, all blue
-// 9筒: bottom row=green×3, mid=red×3, top=blue×3
+// ── 筒 (dots) ─────────────────────────────────────────────────────────────────
+// Colours indexed bottom→top, L→R per row
 const P_COL = {
   1: ['#c0392b'],
   2: ['#1a6ea8','#1a7a3c'],
   3: ['#1a6ea8','#c0392b','#1a7a3c'],
   4: ['#1a6ea8','#1a7a3c','#1a7a3c','#1a6ea8'],
   5: ['#1a6ea8','#1a7a3c','#c0392b','#1a7a3c','#1a6ea8'],
+  // 6筒: bottom 2 red, mid 2 red, top 2 green
   6: ['#c0392b','#c0392b','#c0392b','#c0392b','#1a7a3c','#1a7a3c'],
+  // 7筒: 4 green corners, then 3 red diagonal TL-inner→C→BR-inner on top
   7: ['#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#c0392b','#c0392b','#c0392b'],
   8: ['#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8'],
   9: ['#1a7a3c','#1a7a3c','#1a7a3c','#c0392b','#c0392b','#c0392b','#1a6ea8','#1a6ea8','#1a6ea8'],
 };
-// 6筒: cols x=34,66; rows y=78(B),50(M),22(T)
-// 7筒: green corners [BL,BR,TL,TR] then red diagonal [near-TL, C, near-BR]
+// Positions: [cx,cy] in viewBox 0 0 100 100
 const P_POS = {
   1: [[50,50]],
   2: [[50,72],[50,28]],
-  3: [[32,75],[50,50],[68,25]],
+  3: [[32,75],[50,50],[68,25]],         // diagonal BL→C→TR
   4: [[34,72],[66,72],[34,28],[66,28]],
   5: [[34,75],[66,75],[50,50],[34,25],[66,25]],
   6: [[34,78],[66,78],[34,50],[66,50],[34,22],[66,22]],
-  7: [[34,78],[66,78],[34,22],[66,22], [40,28],[50,50],[60,72]],
+  // 7: corners at same x,y as 6筒 B+M rows, then red diagonal
+  7: [[34,78],[66,78],[34,22],[66,22],  [40,28],[50,50],[60,72]],
   8: [[34,82],[66,82],[34,60],[66,60],[34,38],[66,38],[34,16],[66,16]],
   9: [[26,82],[50,82],[74,82],[26,50],[50,50],[74,50],[26,18],[50,18],[74,18]],
 };
@@ -69,7 +66,7 @@ function PinDot({ cx, cy, r, color }) {
   );
 }
 function PinFace({ n, isSmall }) {
-  const pos = P_POS[n]||[], col = P_COL[n]||[];
+  const pos=P_POS[n]||[], col=P_COL[n]||[];
   const r = isSmall ? 8 : 10;
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
@@ -78,14 +75,12 @@ function PinFace({ n, isSmall }) {
   );
 }
 
-// ── 索 bamboo ─────────────────────────────────────────────────────────────────
-// From screenshots: sticks are VERY tall rounded rods, paired in 2 columns
-// 5索: LT, RED-centre, LB, RT, RB (red centre stick)
-// 7索: 1 red top-centre, then 3 rows × 2 cols green = 7 total
-// 8索: Two chevrons — top ∧ shape (4 sticks angled up) + bottom ∨ shape (4 angled down)
-//   From image 8: the 8-bamboo looks like "WW" = two M shapes stacked
-//   Simplified: outer sticks diagonal, inner sticks nearly vertical forming W+M
-// 9索: 3 cols L=green, M=red, R=green
+// ── 索 (bamboo) ───────────────────────────────────────────────────────────────
+// Colours per stick (top→bottom, L→R where applicable)
+// 3索: 1 stick top-centre + 2 bottom-row
+// 7索: 1 RED top-centre + 3 rows of 2 green below
+// 8索: special chevron (handled separately as pure SVG paths, NO inner components)
+// 9索: 3 cols L=green M=red R=green
 const S_COL = {
   2: ['#1a7a3c','#1a7a3c'],
   3: ['#1a7a3c','#1a7a3c','#1a7a3c'],
@@ -95,9 +90,10 @@ const S_COL = {
   7: ['#c0392b','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'],
   9: ['#1a7a3c','#c0392b','#1a7a3c','#1a7a3c','#c0392b','#1a7a3c','#1a7a3c','#c0392b','#1a7a3c'],
 };
+// Positions [cx,cy] top→bottom L→R
 const S_POS = {
   2:  [[50,28],[50,72]],
-  3:  [[50,18],[36,72],[64,72]],
+  3:  [[50,18],[36,72],[64,72]],         // 1 top-centre + 2 bottom-row
   4:  [[36,27],[64,27],[36,73],[64,73]],
   5:  [[36,21],[50,50],[36,79],[64,21],[64,79]],
   6:  [[36,17],[64,17],[36,50],[64,50],[36,83],[64,83]],
@@ -106,7 +102,7 @@ const S_POS = {
 };
 
 function BambooStick({ cx, cy, w, h, color }) {
-  const dark = color==='#1a7a3c'?'#0d4a1e':'#7a1208';
+  const dark = color==='#1a7a3c' ? '#0d4a1e' : '#7a1208';
   return (
     <g transform={`translate(${cx},${cy})`}>
       <rect x={-w/2} y={-h/2} width={w} height={h} rx={w*0.38} fill={color}/>
@@ -116,38 +112,42 @@ function BambooStick({ cx, cy, w, h, color }) {
   );
 }
 
-// 8索: W+M chevron pattern — render as pairs of diagonal sticks
-// Top half: inverted-V ∧ (4 sticks forming peak)
-// Bottom half: V ∨ (4 sticks forming valley)
+// 8索 chevron: pure SVG paths, NO inner function components (they crash React)
 function Sou8Face({ isSmall }) {
-  const g = '#1a7a3c', d = '#0d4a1e';
-  const w = isSmall ? 6 : 9;
-  // Top ∧ (inverted M): left-outer going up-left, left-inner going up-right,
-  //                      right-inner going up-left, right-outer going up-right
-  function Stick({ x1,y1,x2,y2 }) {
-    const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
-    const ang=Math.atan2(dy,dx)*180/Math.PI;
-    const cx=(x1+x2)/2,cy=(y1+y2)/2;
-    return (
-      <g transform={`translate(${cx},${cy}) rotate(${ang+90})`}>
-        <rect x={-w/2} y={-len/2} width={w} height={len} rx={w*0.38} fill={g}/>
-        <rect x={-w/2-0.5} y={-1.2} width={w+1} height={2.4} rx={1.2} fill={d}/>
-        <rect x={-w/2+1} y={-len/2+2} width={w*0.28} height={len-4} rx={0.6} fill="rgba(255,255,255,0.26)"/>
-      </g>
-    );
-  }
+  const g='#1a7a3c', gd='#0d4a1e';
+  const w = isSmall ? 5.5 : 8;
+  const hl = `rgba(255,255,255,0.28)`;
+
+  // Helper: render one bamboo stick as SVG rect at angle between two points
+  // Rendered inline as SVG elements — no component call
+  const sticks = [
+    // Top ∧: peaks at (50,12)
+    { x1:24,y1:44, x2:50,y2:12 },
+    { x1:76,y1:44, x2:50,y2:12 },
+    { x1:24,y1:44, x2:38,y2:28 },
+    { x1:76,y1:44, x2:62,y2:28 },
+    // Bottom ∨: valley at (50,88)
+    { x1:24,y1:56, x2:50,y2:88 },
+    { x1:76,y1:56, x2:50,y2:88 },
+    { x1:24,y1:56, x2:38,y2:72 },
+    { x1:76,y1:56, x2:62,y2:72 },
+  ];
+
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-      {/* Top ∧ — 4 sticks peak at top-centre */}
-      <Stick x1={20} y1={48} x2={50} y2={14}/>
-      <Stick x1={80} y1={48} x2={50} y2={14}/>
-      <Stick x1={20} y1={48} x2={36} y2={34}/>
-      <Stick x1={80} y1={48} x2={64} y2={34}/>
-      {/* Bottom ∨ — 4 sticks valley at bottom-centre */}
-      <Stick x1={20} y1={52} x2={50} y2={86}/>
-      <Stick x1={80} y1={52} x2={50} y2={86}/>
-      <Stick x1={20} y1={52} x2={36} y2={66}/>
-      <Stick x1={80} y1={52} x2={64} y2={66}/>
+      {sticks.map((s,i) => {
+        const dx=s.x2-s.x1, dy=s.y2-s.y1;
+        const len=Math.sqrt(dx*dx+dy*dy);
+        const ang=Math.atan2(dy,dx)*180/Math.PI;
+        const cx=(s.x1+s.x2)/2, cy=(s.y1+s.y2)/2;
+        return (
+          <g key={i} transform={`translate(${cx},${cy}) rotate(${ang+90})`}>
+            <rect x={-w/2} y={-len/2} width={w} height={len} rx={w*0.38} fill={g}/>
+            <rect x={-w/2-0.5} y={-1.2} width={w+1} height={2.4} rx={1.2} fill={gd}/>
+            <rect x={-w/2+1} y={-len/2+2} width={w*0.26} height={len-4} rx={0.6} fill={hl}/>
+          </g>
+        );
+      })}
     </svg>
   );
 }
@@ -175,7 +175,7 @@ function SouFace({ n, isSmall }) {
   const pos=S_POS[n]||[], col=S_COL[n]||[];
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-      {pos.map(([cx,cy],i)=><BambooStick key={i} cx={cx} cy={cy} w={sw} h={sh} color={col[i]||'#1a7a3c'}/>)}
+      {pos.map(([cx,cy],i) => <BambooStick key={i} cx={cx} cy={cy} w={sw} h={sh} color={col[i]||'#1a7a3c'}/>)}
     </svg>
   );
 }
@@ -710,7 +710,7 @@ function StrategyPanel({ tiles, melds, seatWind, roundWind, minFan, chosenLane, 
   const domSuit = Object.entries(suitCt).sort((a,b)=>b[1]-a[1])[0]?.[0] || 'man';
   const suitChar = SUIT_CHARS[domSuit] || '';
 
-  const ALL_LANES = ['flush','halfFlush','allHonours','triplet','pingHu','orphan'];
+  const ALL_LANES = ['flush','halfFlush','allHonours','triplet','pingHu','orphan','defensive'];
 
   function laneLabel(lane) {
     if (lane==='flush')      return `清一色(${suitChar})`;
@@ -755,10 +755,10 @@ function StrategyPanel({ tiles, melds, seatWind, roundWind, minFan, chosenLane, 
 
 // ─── Setup Screen ─────────────────────────────────────────────────────────────
 const DEFAULT_PLAYERS = [
-  { name:'你',   isHuman:true,  strategy:'balanced' },
-  { name:'阿明', isHuman:false, strategy:'flush' },
-  { name:'阿珍', isHuman:false, strategy:'value' },
-  { name:'阿強', isHuman:false, strategy:'balanced' },
+  { name:'你',   isHuman:true,  strategy:'auto' },
+  { name:'阿明', isHuman:false, strategy:'auto' },
+  { name:'阿珍', isHuman:false, strategy:'auto' },
+  { name:'阿強', isHuman:false, strategy:'auto' },
 ];
 function SetupScreen({ onStart, onSimulate }) {
   const [players, setPlayers] = useState(DEFAULT_PLAYERS.map(p=>({...p})));
@@ -781,7 +781,8 @@ function SetupScreen({ onStart, onSimulate }) {
             {!p.isHuman&&<>
               <div className="toggle-row" style={{marginTop:6}}>
                 {Object.entries(STRATEGIES).map(([k,v])=>(
-                  <button key={k} className={`toggle-btn${p.strategy===k?' active':''}`} onClick={()=>upd(i,'strategy',k)}>{v.label}</button>
+                  <button key={k} className={`toggle-btn${p.strategy===k?' active':''}`}
+                    onClick={()=>upd(i,'strategy',k)} title={v.desc}>{v.label}</button>
                 ))}
               </div>
               <div className="strategy-desc">{STRATEGIES[p.strategy]?.desc}</div>
@@ -1225,10 +1226,11 @@ export default function App() {
                   halfFlush:  `建議：混一色(${suitLabel}) — 留${suitLabel}及字牌`,
                   allHonours: '建議：字一色 — 留字牌，打數牌',
                   triplet:    '建議：對對胡 — 留對子，碰刻子',
-                  pingHu:     '建議：平糊 — 留順子，避開字牌',
+                  pingHu:     '建議：平糊 — 留順子，打字牌',
                   orphan:     '建議：十三么 — 留一九字牌',
-                  defensive:  '建議：保守 — 打已出現的牌',
-                }[lane] || '';
+                  defensive:  '建議：保守 — 打已出現的安全牌',
+                  auto:       `建議：${LANE_LABELS[lane]||lane}`,
+                }[lane] || `建議：${LANE_LABELS[lane]||lane}`;
                 if (!guidance) return null;
                 return <span className="hint-strategy-text">{guidance}</span>;
               })()}

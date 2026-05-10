@@ -18,16 +18,15 @@ import {
 } from '../game/tiles.js';
 
 // ─── Strategy profiles ────────────────────────────────────────────────────────
+// Strategy profiles for setup screen — each player can have preferred lane weightings
 export const STRATEGIES = {
-  balanced:   { label:'均衡',     desc:'自動評估手牌選擇最佳路線' },
-  flush:      { label:'清一色',   desc:'集中同一花色，穩定達到高番' },
-  triplet:    { label:'對對胡',   desc:'專攻刻子，碰任何配對的牌' },
-  value:      { label:'番牌優先', desc:'優先保留中發白及風牌，快速達到最低番數' },
-  speed:      { label:'速攻聽牌', desc:'最短路線聽牌，不計番數' },
-  dragon:     { label:'大三元',   desc:'死守中發白，追求高番' },
-  winds:      { label:'大四喜',   desc:'死守風牌刻子，追求爆棚' },
-  orphan:     { label:'十三么',   desc:'只保留一九字牌，追求最高番' },
-  defensive:  { label:'保守打法', desc:'以安全牌為先，避免放炮' },
+  auto:      { label:'自動',   desc:'每局根據手牌自動選擇最佳路線（推薦）' },
+  flush:     { label:'清一色', desc:'集中同一花色，穩定達到高番' },
+  halfFlush: { label:'混一色', desc:'同一花色加字牌' },
+  triplet:   { label:'對對胡', desc:'專攻刻子，碰任何配對的牌' },
+  pingHu:    { label:'平糊',   desc:'全上牌，平手快速糊牌' },
+  dragon:    { label:'大三元', desc:'死守中發白，追求高番' },
+  defensive: { label:'保守',   desc:'以安全牌為先，避免放炮' },
 };
 
 // ─── Utility helpers ──────────────────────────────────────────────────────────
@@ -110,7 +109,13 @@ function estimateFan(tiles, melds, seatWind, roundWind, lane) {
 // ─── Lane (strategy path) selection ──────────────────────────────────────────
 
 function selectLane(tiles, melds, seatWind, roundWind, minFan, profile) {
-  if (profile !== 'balanced') return profile;
+  if (!profile || profile === 'auto') {
+    // Dynamic: scan hand and pick best lane
+    const scan = scanBestLane(tiles, melds, seatWind, roundWind, minFan);
+    return scan?.best || 'pingHu';
+  }
+  // Fixed profile: use it directly
+  return profile;
 
   // Force-locked profiles (user picked these explicitly, balanced overrides)
   const cnt = countByKey(tiles);
@@ -326,14 +331,15 @@ export function aiWantsPong(tile, hand, melds, strategy='balanced', seatWind=0, 
     case 'orphan':
       return false;
 
-    default: // balanced
-      // Always pong honours (字牌) — they're slow to build any other way
+    default: // auto
+      // Always pong ALL honours (字牌) — essential for minimum fan
       if (DRAGONS.includes(key)) return true;
-      if (WINDS.includes(key)) return true; // pong ANY wind, not just seat/round
-      // Pong suited tiles if it reduces shanten by 1
-      const cnt = countByKey(hand);
-      const shanBefore = calcShanten(hand);
-      if (cnt[key]>=2 && calcShanten([...hand.filter(t=>t.key!==key).slice(0,hand.length-2), tile]) < shanBefore) return true;
+      if (WINDS.includes(key)) return true;
+      // Pong suited tiles if shanten improves
+      {
+        const cnt = countByKey(hand);
+        if (cnt[key]>=2 && calcShanten(hand.filter(t=>t.key!==key).slice(0,hand.length-2)) < calcShanten(hand)) return true;
+      }
       return false;
   }
 }
@@ -362,8 +368,6 @@ export function meetsMinFan(fan, minFan) {
 export function scanBestLane(tiles, melds, seatWind, roundWind, minFan = 3) {
   const cnt = {};
   for (const t of tiles) cnt[t.key] = (cnt[t.key]||0)+1;
-  const allKeys = [...import.meta.glob ? [] : []]; // runtime tiles
-
   // Score each possible lane
   const scores = {};
 
@@ -435,8 +439,6 @@ export const LANE_LABELS = {
   triplet:    '對對胡',
   pingHu:     '平糊',
   orphan:     '十三么',
-  defensive:  '保守打法',
-  balanced:   '均衡',
-  value:      '番牌優先',
-  speed:      '速攻聽牌',
+  defensive:  '保守',
+  auto:       '自動',
 };
