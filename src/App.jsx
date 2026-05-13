@@ -207,38 +207,45 @@ function HonourFace({ tkey, isSmall }) {
   );
 }
 const FLOWER_META = {
-  plum:         { ch:'梅', n:1, emoji:'🌸', isSeason:false },
-  orchid:       { ch:'蘭', n:2, emoji:'🌺', isSeason:false },
-  chrysanthemum:{ ch:'菊', n:3, emoji:'🌼', isSeason:false },
-  bamboo:       { ch:'竹', n:4, emoji:'🎋', isSeason:false },
-  spring:       { ch:'春', n:1, emoji:'🌱', isSeason:true },
-  summer:       { ch:'夏', n:2, emoji:'☀️', isSeason:true },
-  autumn:       { ch:'秋', n:3, emoji:'🍂', isSeason:true },
-  winter:       { ch:'冬', n:4, emoji:'❄️', isSeason:true },
+  plum:         { ch:'梅', n:'一', emoji:'🌸', isSeason:false },
+  orchid:       { ch:'蘭', n:'二', emoji:'🌺', isSeason:false },
+  chrysanthemum:{ ch:'菊', n:'三', emoji:'🌼', isSeason:false },
+  bamboo:       { ch:'竹', n:'四', emoji:'🎋', isSeason:false },
+  spring:       { ch:'春', n:'1', emoji:'🌱', isSeason:true },
+  summer:       { ch:'夏', n:'2', emoji:'☀️', isSeason:true },
+  autumn:       { ch:'秋', n:'3', emoji:'🍂', isSeason:true },
+  winter:       { ch:'冬', n:'4', emoji:'❄️', isSeason:true },
 };
 
 function FlowerFace({ tkey, isSmall }) {
   const meta = FLOWER_META[tkey] || { ch:tkey, n:'', emoji:'🌸', isSeason:false };
   const color = FLOWER_COLOR[tkey] || '#888';
+  // Flowers: number on right in red (梅一,蘭二,菊三,竹四)
+  // Seasons: number on left in blue (春1,夏2,秋3,冬4)
   const numColor = meta.isSeason ? '#1a6ea8' : '#c0392b';
-  const CN_NUMS = ['一','二','三','四'];
-  const numCh = CN_NUMS[(meta.n||1)-1] || '';
+
   if (isSmall) {
     return (
-      <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:0,lineHeight:1,position:'relative'}}>
-        <span style={{fontSize:'0.75em',lineHeight:1}}>{meta.emoji}</span>
-        <span style={{fontSize:'0.5em',fontWeight:800,color,lineHeight:1}}>{meta.ch}</span>
-        <span style={{position:'absolute',bottom:0,right:meta.isSeason?'auto':1,left:meta.isSeason?1:'auto',fontSize:'0.48em',fontWeight:900,color:numColor,lineHeight:1}}>{numCh}</span>
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+        height:'100%',lineHeight:1,position:'relative',overflow:'hidden'}}>
+        <span style={{fontSize:'0.85em',lineHeight:1}}>{meta.emoji}</span>
+        <div style={{display:'flex',alignItems:'center',gap:1,lineHeight:1}}>
+          {meta.isSeason && <span style={{fontSize:'0.42em',fontWeight:900,color:numColor}}>{meta.n}</span>}
+          <span style={{fontSize:'0.5em',fontWeight:800,color}}>{meta.ch}</span>
+          {!meta.isSeason && <span style={{fontSize:'0.42em',fontWeight:900,color:numColor}}>{meta.n}</span>}
+        </div>
       </div>
     );
   }
-  // Full size: season number on LEFT in blue, flower number on RIGHT in red
   return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:1,lineHeight:1,position:'relative'}}>
-      {meta.isSeason && <span style={{position:'absolute',top:2,left:3,fontSize:'0.55em',fontWeight:900,color:numColor,lineHeight:1}}>{numCh}</span>}
-      {!meta.isSeason && <span style={{position:'absolute',top:2,right:3,fontSize:'0.55em',fontWeight:900,color:numColor,lineHeight:1}}>{numCh}</span>}
-      <span style={{fontSize:'1.15em',lineHeight:1}}>{meta.emoji}</span>
-      <span style={{fontSize:'0.62em',fontWeight:900,color,lineHeight:1}}>{meta.ch}</span>
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+      height:'100%',lineHeight:1,position:'relative'}}>
+      <span style={{fontSize:'1.3em',lineHeight:1}}>{meta.emoji}</span>
+      <div style={{display:'flex',alignItems:'center',gap:2,lineHeight:1,marginTop:1}}>
+        {meta.isSeason && <span style={{fontSize:'0.5em',fontWeight:900,color:numColor,lineHeight:1}}>{meta.n}</span>}
+        <span style={{fontSize:'0.65em',fontWeight:900,color,lineHeight:1}}>{meta.ch}</span>
+        {!meta.isSeason && <span style={{fontSize:'0.5em',fontWeight:900,color:numColor,lineHeight:1}}>{meta.n}</span>}
+      </div>
     </div>
   );
 }
@@ -350,13 +357,22 @@ function DangerTooltip({ dangerLevel, discardInfo, visible }) {
 }
 
 // ─── Tile Tracker ─────────────────────────────────────────────────────────────
-function TileTracker({ hand, discards, melds, highlightKey }) {
+function TileTracker({ hand, discards, melds, highlightKey, debug, wall }) {
+  // In debug mode: show tiles remaining in wall only
+  // In normal mode: show 4 minus what we've seen (hand + discards + melds)
   const seen = {};
   const count = t => { seen[t.key]=(seen[t.key]||0)+1; };
   hand.forEach(count);
   discards.flat().forEach(count);
   melds.flat().flatMap(m=>m.tiles).forEach(count);
-  const rem = key => 4-(seen[key]||0);
+  // Wall count per key
+  const wallCount = {};
+  if (debug && wall) {
+    for (const t of wall) wallCount[t.key]=(wallCount[t.key]||0)+1;
+  }
+  const rem = key => debug && wall
+    ? Math.max(0, wallCount[key]||0)
+    : Math.max(0, 4-(seen[key]||0));
   const rows = [
     ...SUITS.map(s=>({ label:SUIT_LABEL[s], tiles:Array.from({length:9},(_,i)=>`${s}${i+1}`) })),
     { label:'字', tiles:HONOURS },
@@ -430,14 +446,18 @@ function OpponentPanel({ player, hand, melds, discards, flowers, seatWind, isDea
           ))}
         </div>
       )}
-      <div className="opp-tiles">
+      <div className={debug ? "opp-tiles opp-tiles-debug" : "opp-tiles"}>
         {debug
           ? hand.map(t=><Tile key={t.id} tile={t} small highlighted={highlightKey===t.key}/>)
           : hand.map((_,i)=><TileBack key={i} small/>)
         }
       </div>
       <div className="opp-discards">
-        {discards.map(t=><Tile key={t.id} tile={t} small inDiscard highlighted={highlightKey===t.key}/>)}
+        {discards.map(t=>(
+          <Tile key={t.id} tile={t} small inDiscard highlighted={highlightKey===t.key}
+            onMouseEnter={()=>setHoverKey&&setHoverKey(t.key)}
+            onMouseLeave={()=>setHoverKey&&setHoverKey(null)}/>
+        ))}
       </div>
     </div>
   );
@@ -849,14 +869,14 @@ function SimLive({ players, totalGames, minFan, onBack }) {
       </div>
       {results.length>0&&(
         <table className="sim-table">
-          <thead><tr><th>局</th>{players.map((p,i)=><th key={i}>{p.name}</th>)}<th>結果</th></tr></thead>
+          <thead><tr><th>圈局</th>{players.map((p,i)=><th key={i}>{p.name}</th>)}<th>結果</th></tr></thead>
           <tbody>
             {results.slice(-20).reverse().map((r,idx)=>(
               <tr key={idx}>
-                <td>{results.length-idx}</td>
+                <td><span className="sim-round-label">{r.roundLabel||`第${results.length-idx}局`}</span></td>
                 {r.finalScores.map((s,i)=><td key={i} style={{color:s>0?'#2ecc71':s<0?'#e74c3c':'inherit'}}>{s>0?'+':''}{s}</td>)}
                 <td style={{color:'var(--dim)',fontSize:'.68rem'}}>
-                  {r.hands.filter(h=>h.result?.type==='win').map(h=>`${players[h.result.winner].name}${h.result.isSelfDraw?'摸':'食'}${h.result.fan}番`).join(' · ')||'流局'}
+                  {r.hands?.filter(h=>h.result?.type==='win').map(h=>`${players[h.result.winner]?.name||''}${h.result.isSelfDraw?'摸':'食'}${h.result.fan>=99?'爆棚':h.result.fan+'番'}`).join(' · ')||'流局'}
                 </td>
               </tr>
             ))}
@@ -1096,6 +1116,15 @@ export default function App() {
             <span className="badge badge-wind">{WIND_LABELS[seatWinds[humanIdx]]}</span>
             {humanIdx===dealer&&<span className="badge badge-dealer">莊</span>}
             <FlowerRow flowers={flowers[humanIdx]}/>
+            {discards[humanIdx].length>0&&(
+              <div className="last-discard-label">
+                上一打：
+                <div className="last-discard-tile">
+                  <TileFace tkey={discards[humanIdx][discards[humanIdx].length-1].key} isSmall/>
+                </div>
+                <span style={{fontSize:'.65rem',color:'var(--dim)'}}>{TILE_DISPLAY[discards[humanIdx][discards[humanIdx].length-1].key]}</span>
+              </div>
+            )}
             {humanMelds.length>0&&(
               <div className="melds-row">
                 {humanMelds.map((m,i)=>(
@@ -1113,9 +1142,11 @@ export default function App() {
                 const {fan}=calcFan(hand.hands[p],hand.melds[p],hand.drawnTile,true,
                   hand.seatWinds[p],hand.session.round,hand.flowers[p]);
                 const meetsMin = fan >= hand.session.minFan;
-                return <button className={`btn ${meetsMin?'btn-red':'btn-gray'}`}
-                  title={meetsMin?`自摸 ${fan}番`:`${fan}番 (需${hand.session.minFan}番)`}
-                  onClick={handleSelfDraw}>自摸！{fan}番</button>;
+                return <button className={`btn-zimo${meetsMin?' zimo-ok':' zimo-nok'}`}
+                  title={meetsMin?`自摸 ${fan}番！`:` ${fan}番 (需${hand.session.minFan}番起糊)`}
+                  onClick={handleSelfDraw}>
+                  🀄 自摸！{fan}番
+                </button>;
               })()}
               {/* 暗槓 — when human has 4 of same tile in hand */}
               {isHumanTurn&&phase==='discard'&&(()=>{
@@ -1246,7 +1277,7 @@ export default function App() {
                     <> · <span className="hint-dot-small">●</span>打出可聽牌</>}
                 </span>
               )}
-              {hint.hints.filter(h=>h!=='對對胡'&&h!=='清一色').map((h,i)=><span key={i} className="hint-tag">{h}</span>)}
+              {hint.hints.map((h,i)=><span key={i} className="hint-tag">{h}</span>)}
             </div>
           )}
 
@@ -1295,7 +1326,7 @@ export default function App() {
             seatWind={seatWinds[humanIdx]} roundWind={session.round}
             minFan={session.minFan} chosenLane={chosenLane}
             onChoose={setChosenLane}/>
-          <TileTracker hand={humanHand} discards={discards} melds={melds} highlightKey={hoverKey}/>
+          <TileTracker hand={humanHand} discards={discards} melds={melds} highlightKey={hoverKey} debug={debug} wall={wall}/>
         </div>
       </div>
 

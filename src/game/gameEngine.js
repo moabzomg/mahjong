@@ -276,7 +276,12 @@ function executeChi(state,p,meldTiles,claimedTile) {
   const hands=state.hands.map((h,i)=>i===p?sortHand(newHand):h);
   const melds=state.melds.map((m,i)=>i===p?[...m,meld]:m);
   const str=sorted.map(t=>TILE_DISPLAY[t.key]).join('');
+  // After chi, identify which suit was used — AI should lock to this suit
+  const chiSuit = sortedMeld[0]?.key.match(/^(man|pin|sou)/)?.[1] || null;
+  const lockedSuits = {...(state.lockedSuits||{})};
+  if (chiSuit) lockedSuits[p] = chiSuit;
   return { ...state,hands,melds,currentPlayer:p,phase:'discard',claimPending:null,
+    lockedSuits,
     lastClaimPlayer:p,lastClaimType:'chi',
     log:[...state.log,`${state.session.players[p].name} 上 ${str}！`] };
 }
@@ -347,9 +352,17 @@ export function aiTurn(state) {
         if(extra) return declareAddKong(state,p,extra.id);
       }
     }
-    // Pick strategy dynamically using scanBestLane
-    const scan = scanBestLane(state.hands[p], state.melds[p], state.seatWinds[p], state.session.round, state.session.minFan);
-    const effectiveStrat = scan?.best || strat;
+    // If player has chied, they're committed to that suit — force flush/halfFlush
+    const lockedSuit = state.lockedSuits?.[p];
+    let effectiveStrat;
+    if (lockedSuit) {
+      // Check if remaining tiles support flush or halfFlush
+      const suitTiles = state.hands[p].filter(t=>t.key.startsWith(lockedSuit)&&/\d$/.test(t.key));
+      effectiveStrat = suitTiles.length >= 4 ? 'flush' : 'halfFlush';
+    } else {
+      const scan = scanBestLane(state.hands[p], state.melds[p], state.seatWinds[p], state.session.round, state.session.minFan);
+      effectiveStrat = scan?.best || strat;
+    }
     const discard=aiDiscard(hand,state.melds[p],effectiveStrat,state.seatWinds[p],state.session.round,state.session.minFan,state,state.turnCount||0);
     return doDiscard(state,p,discard.id);
   }
@@ -408,7 +421,9 @@ export function runOneGame(players, minFan=3) {
       session={...session,scores:[...state.session.scores]};
     }
 
-    results.push({hand:handNum,dealer:session.dealer,result:state.result,scores:[...session.scores]});
+    const roundNames=['東','南','西','北'];
+    const roundLabel=`${roundNames[session.round]||'東'}圈${(session.handsPlayed%4)+1}局`;
+    results.push({hand:handNum,dealer:session.dealer,result:state.result,scores:[...session.scores],roundLabel});
 
     const ns=advanceSession(state);
     if(ns.round>=4||ns.handsPlayed>=16) break;

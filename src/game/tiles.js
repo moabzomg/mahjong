@@ -224,9 +224,17 @@ export function calcFan(tiles, melds, winTile, isSelfDraw, seatWind, roundWind, 
 
   if (melds.length === 0 && isThirteenOrphans(tiles)) return { fan: 99, patterns: ['十三么'] };
   const isAllTriplets = checkAllTriplets(tiles, melds);
-  const isKanKan = isAllTriplets && !melds.some(m=>m.type==='chi') && isSelfDraw;
-  if (isKanKan) { fan = Math.max(fan, 7); patterns.push('坎坎胡'); }
-  else if (isAllTriplets) { fan = Math.max(fan, 3); patterns.push('對對胡'); }
+  // 坎坎胡 (四暗刻) = ALL melds concealed (no open pong/chi/ming-kong) + self-draw
+  // = 爆棚 (十三番) in HK style
+  // 對對胡 = all triplets but with some open melds = 3番 base
+  const isKanKan = isAllTriplets && melds.length === 0 && isSelfDraw;
+  if (isKanKan) {
+    return { fan: 99, patterns: ['坎坎胡(四暗刻)'] }; // 爆棚
+  }
+  if (isAllTriplets) {
+    fan = Math.max(fan, 3);
+    patterns.push('對對胡');
+  }
 
   const isPureFlush = allTiles.every(t=>isSuit(t)) &&
     (() => { const s=new Set(allTiles.map(t=>SUITS.find(x=>t.key.startsWith(x)&&/\d$/.test(t.key)))); return s.size===1; })();
@@ -408,7 +416,11 @@ export function analyzeHand(tiles, melds, allSeenTiles = []) {
   const hints = [];
   const cnt = countKey(tiles);
   if (melds.every(m=>m.type!=='chi') && Object.values(cnt).filter(v=>v>=3).length>=2) hints.push('對對胡');
-  for (const dk of DRAGONS) if (cnt[dk]>=2) hints.push(`${TILE_DISPLAY[dk]}對`);
+  // Note: 白對/中對/發對 are NOT scoring patterns — only shown as potential if becoming triplet
+  for (const dk of DRAGONS) {
+    if (cnt[dk]>=3) hints.push(`${TILE_DISPLAY[dk]}刻`);
+    // Don't hint pairs — not a scoring type, would be confusing
+  }
   const suitTiles = tiles.filter(t=>isSuit(t));
   if (suitTiles.length>=8) {
     const s = new Set(suitTiles.map(t=>SUITS.find(x=>t.key.startsWith(x)&&/\d$/.test(t.key))));

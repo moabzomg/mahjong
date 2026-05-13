@@ -165,8 +165,29 @@ function scoreDiscard(tile, hand, melds, lane, seatWind, roundWind, opponentThre
 
     case 'flush': {
       const [targetSuit] = dominantSuit(hand);
-      if (suitOf(tile) === targetSuit) score += 200; // strongly keep target suit
-      if (isHonour(tile) && countByKey(hand)[key]===1) score -= 10; // isolated honour = discard
+      const cnt = countByKey(hand);
+      const tileCount = cnt[key] || 1;
+
+      if (suitOf(tile) === targetSuit) {
+        // Keep target suit strongly
+        score += 300;
+        // But isolates with no sequence potential are less valuable
+        if (tileCount === 1) score -= 30;
+      } else {
+        // Off-suit: want to discard these
+        // Priority: discard isolated honours first, then isolated off-suit, keep pairs last
+        if (isHonour(tile)) {
+          // Honours: discard isolated first, keep pairs longer (can pivot to 對對胡)
+          if (tileCount >= 3) score += 50;       // triplet = keep (1番 bonus)
+          else if (tileCount === 2) score += 10; // pair = keep for now (可轉對對胡)
+          else score -= 60;                       // isolated honour = discard first
+        } else {
+          // Off-suit numerals: discard isolated, keep pairs
+          if (tileCount >= 3) score += 30;        // triplet = keep (可轉對對胡)
+          else if (tileCount === 2) score += 5;   // pair = keep
+          else score -= 40;                        // isolated = discard
+        }
+      }
       break;
     }
 
@@ -177,6 +198,27 @@ function scoreDiscard(tile, hand, melds, lane, seatWind, roundWind, opponentThre
         // Middle tiles form sequences (bad for triplet)
         const n = parseInt(key.slice(-1));
         if (n>=3 && n<=7 && cnt[key]<2) score -= 20;
+      }
+      break;
+    }
+
+    case 'halfFlush': {
+      const [targetSuit] = dominantSuit(hand);
+      const cnt = countByKey(hand);
+      const tileCount = cnt[key] || 1;
+
+      if (suitOf(tile) === targetSuit) {
+        score += 280; // keep target suit
+        if (tileCount === 1) score -= 20;
+      } else if (isHonour(tile)) {
+        // Honours in halfFlush: keep pairs/triplets, discard isolated
+        if (tileCount >= 3) score += 100; // triplet = 1番 bonus
+        else if (tileCount === 2) score += 30; // pair
+        else score -= 50; // isolated honour = discard
+      } else {
+        // Off-suit numerals: discard these (keep pairs last)
+        if (tileCount >= 2) score += 20; // pair = keep briefly
+        else score -= 80; // isolated off-suit = discard first
       }
       break;
     }
