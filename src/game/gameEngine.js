@@ -277,7 +277,7 @@ function executeChi(state,p,meldTiles,claimedTile) {
   const melds=state.melds.map((m,i)=>i===p?[...m,meld]:m);
   const str=sorted.map(t=>TILE_DISPLAY[t.key]).join('');
   // After chi, identify which suit was used — AI should lock to this suit
-  const chiSuit = sortedMeld[0]?.key.match(/^(man|pin|sou)/)?.[1] || null;
+  const chiSuit = sorted[0]?.key.match(/^(man|pin|sou)/)?.[1] || null;
   const lockedSuits = {...(state.lockedSuits||{})};
   if (chiSuit) lockedSuits[p] = chiSuit;
   return { ...state,hands,melds,currentPlayer:p,phase:'discard',claimPending:null,
