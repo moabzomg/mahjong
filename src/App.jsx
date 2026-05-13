@@ -19,7 +19,7 @@ const SUIT_LABEL = { man:'萬', pin:'筒', sou:'索' };
 // ─── Tile SVG art ────────────────────────────────────────────────────────────
 const CN_NUM = ['一','二','三','四','五','六','七','八','九'];
 const HONOUR_COLOR = {
-  east:'#111', south:'#111', west:'#111', north:'#111',
+  east:'#1a1a1a', south:'#1a1a1a', west:'#1a1a1a', north:'#1a1a1a',
   chun:'#c0392b', hatsu:'#1a7a3c', haku:'#1a6ea8',
 };
 const FLOWER_COLOR = {
@@ -27,150 +27,163 @@ const FLOWER_COLOR = {
   spring:'#1a7a3c', summer:'#d35400', autumn:'#c0392b', winter:'#2980b9',
 };
 
-// ── 筒 (dots) ─────────────────────────────────────────────────────────────────
-// Colours indexed bottom→top, L→R per row
+// ── 筒 (dots) — from screenshots: all dots dark green/black with concentric ring ─
+// 1筒: large mandala-style circular design (red outer ring + green inner)
+// 2-9筒: plain dark dots with ring, arranged in standard positions
+// Colours from screenshots: mostly dark green (#1a4a1a / black), 
+// with 1筒 being the special red+green circle
 const P_COL = {
-  1: ['#c0392b'],
-  2: ['#1a6ea8','#1a7a3c'],
-  3: ['#1a6ea8','#c0392b','#1a7a3c'],
-  4: ['#1a6ea8','#1a7a3c','#1a7a3c','#1a6ea8'],
-  5: ['#1a6ea8','#1a7a3c','#c0392b','#1a7a3c','#1a6ea8'],
-  // 6筒: bottom 2 red, mid 2 red, top 2 green
-  6: ['#c0392b','#c0392b','#c0392b','#c0392b','#1a7a3c','#1a7a3c'],
-  // 7筒: 4 green corners, then 3 red diagonal TL-inner→C→BR-inner on top
-  7: ['#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#c0392b','#c0392b','#c0392b'],
-  8: ['#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8','#1a6ea8'],
-  9: ['#1a7a3c','#1a7a3c','#1a7a3c','#c0392b','#c0392b','#c0392b','#1a6ea8','#1a6ea8','#1a6ea8'],
+  1: ['#c0392b'],                          // 1筒: single large red-centred circle
+  2: ['#1a1a1a','#1a1a1a'],
+  3: ['#1a1a1a','#c0392b','#1a1a1a'],      // centre dot red
+  4: ['#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a'],
+  5: ['#1a1a1a','#1a1a1a','#c0392b','#1a1a1a','#1a1a1a'], // centre red
+  6: ['#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a'],
+  7: ['#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a'],
+  8: ['#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a'],
+  9: ['#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a','#1a1a1a'],
 };
-// Positions: [cx,cy] in viewBox 0 0 100 100
 const P_POS = {
   1: [[50,50]],
-  2: [[50,72],[50,28]],
-  3: [[32,75],[50,50],[68,25]],         // diagonal BL→C→TR
-  4: [[34,72],[66,72],[34,28],[66,28]],
-  5: [[34,75],[66,75],[50,50],[34,25],[66,25]],
-  6: [[34,78],[66,78],[34,50],[66,50],[34,22],[66,22]],
-  // 7: corners at same x,y as 6筒 B+M rows, then red diagonal
-  7: [[34,78],[66,78],[34,22],[66,22],  [40,28],[50,50],[60,72]],
-  8: [[34,82],[66,82],[34,60],[66,60],[34,38],[66,38],[34,16],[66,16]],
-  9: [[26,82],[50,82],[74,82],[26,50],[50,50],[74,50],[26,18],[50,18],[74,18]],
+  2: [[50,27],[50,73]],
+  3: [[50,20],[50,50],[50,80]],
+  4: [[32,27],[68,27],[32,73],[68,73]],
+  5: [[32,20],[68,20],[50,50],[32,80],[68,80]],
+  6: [[32,17],[68,17],[32,50],[68,50],[32,83],[68,83]],
+  // 7筒: 3 on top row, 4 below (2+2 rows) — matches reference
+  7: [[26,16],[50,16],[74,16],  [32,46],[68,46],  [32,74],[68,74]],
+  8: [[32,13],[68,13],[32,38],[68,38],[32,63],[68,63],[32,88],[68,88]],
+  9: [[26,14],[50,14],[74,14],[26,50],[50,50],[74,50],[26,86],[50,86],[74,86]],
 };
 
 function PinDot({ cx, cy, r, color }) {
+  // From screenshots: dot has a clear concentric ring (outer ring, white gap, filled centre)
+  const isRed = color === '#c0392b';
+  const outerColor = isRed ? '#c0392b' : '#1a4a22';
+  const ringColor = '#ffffff';
+  const innerColor = isRed ? '#c0392b' : '#1a1a1a';
+  if (cx===50 && cy===50 && r > 12) {
+    // 1筒 special: large mandala circle — red outer ring, green inner, decorative
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={r} fill="#c0392b"/>
+        <circle cx={cx} cy={cy} r={r*0.72} fill="white"/>
+        <circle cx={cx} cy={cy} r={r*0.55} fill="#1a7a3c"/>
+        <circle cx={cx} cy={cy} r={r*0.32} fill="white"/>
+        <circle cx={cx} cy={cy} r={r*0.18} fill="#c0392b"/>
+      </g>
+    );
+  }
   return (
     <g>
-      <circle cx={cx} cy={cy} r={r} fill="#ebe4c8" stroke={color} strokeWidth={r*0.22}/>
-      <circle cx={cx} cy={cy} r={r*0.46} fill={color}/>
-      <circle cx={cx-r*0.22} cy={cy-r*0.22} r={r*0.15} fill="rgba(255,255,255,0.55)"/>
+      <circle cx={cx} cy={cy} r={r} fill={outerColor}/>
+      <circle cx={cx} cy={cy} r={r*0.7} fill={ringColor}/>
+      <circle cx={cx} cy={cy} r={r*0.45} fill={innerColor}/>
     </g>
   );
 }
 function PinFace({ n, isSmall }) {
   const pos=P_POS[n]||[], col=P_COL[n]||[];
-  const r = isSmall ? 8 : 10;
+  // For 1筒 give it the big mandala treatment
+  const r = n===1 ? (isSmall ? 28 : 34) : (isSmall ? 9 : 11);
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-      {pos.map(([cx,cy],i) => <PinDot key={i} cx={cx} cy={cy} r={r} color={col[i]||'#1a6ea8'}/>)}
+      {pos.map(([cx,cy],i) => <PinDot key={i} cx={cx} cy={cy} r={r} color={col[i]||'#1a1a1a'}/>)}
     </svg>
   );
 }
 
-// ── 索 (bamboo) ───────────────────────────────────────────────────────────────
-// Colours per stick (top→bottom, L→R where applicable)
-// 3索: 1 stick top-centre + 2 bottom-row
-// 7索: 1 RED top-centre + 3 rows of 2 green below
-// 8索: special chevron (handled separately as pure SVG paths, NO inner components)
-// 9索: 3 cols L=green M=red R=green
-const S_COL = {
-  2: ['#1a7a3c','#1a7a3c'],
-  3: ['#1a7a3c','#1a7a3c','#1a7a3c'],
-  4: ['#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'],
-  5: ['#1a7a3c','#c0392b','#1a7a3c','#1a7a3c','#1a7a3c'],
-  6: ['#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'],
-  7: ['#c0392b','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'],
-  9: ['#1a7a3c','#c0392b','#1a7a3c','#1a7a3c','#c0392b','#1a7a3c','#1a7a3c','#c0392b','#1a7a3c'],
-};
-// Positions [cx,cy] top→bottom L→R
-const S_POS = {
-  2:  [[50,28],[50,72]],
-  3:  [[50,18],[36,72],[64,72]],         // 1 top-centre + 2 bottom-row
-  4:  [[36,27],[64,27],[36,73],[64,73]],
-  5:  [[36,21],[50,50],[36,79],[64,21],[64,79]],
-  6:  [[36,17],[64,17],[36,50],[64,50],[36,83],[64,83]],
-  7:  [[50,12],[36,36],[64,36],[36,59],[64,59],[36,83],[64,83]],
-  9:  [[25,17],[50,17],[75,17],[25,50],[50,50],[75,50],[25,83],[50,83],[75,83]],
-};
+// ── 索 (bamboo) — from screenshots: thin tall green stick-lines, quite narrow ──
+// 1索: bird/peacock drawing (green stylised bird)
+// 2-9索: thin vertical green bars arranged in grid patterns
 
 function BambooStick({ cx, cy, w, h, color }) {
-  const dark = color==='#1a7a3c' ? '#0d4a1e' : '#7a1208';
+  const dark = color==='#c0392b' ? '#7a1208' : '#0d4a1e';
+  const light = 'rgba(255,255,255,0.32)';
   return (
     <g transform={`translate(${cx},${cy})`}>
-      <rect x={-w/2} y={-h/2} width={w} height={h} rx={w*0.38} fill={color}/>
-      <rect x={-w/2-0.7} y={-1.5} width={w+1.4} height={3} rx={1.5} fill={dark}/>
-      <rect x={-w/2+1} y={-h/2+2.5} width={w*0.28} height={h-5} rx={0.7} fill="rgba(255,255,255,0.28)"/>
+      <rect x={-w/2} y={-h/2} width={w} height={h} rx={w*0.35} fill={color}/>
+      <rect x={-w/2+1.5} y={-h/2+3} width={w*0.3} height={h-6} rx={0.8} fill={light}/>
+      <rect x={-w/2-0.5} y={-2} width={w+1} height={4} rx={2} fill={dark} opacity={0.6}/>
     </g>
   );
 }
 
-// 8索 chevron: pure SVG paths, NO inner function components (they crash React)
-function Sou8Face({ isSmall }) {
-  const g='#1a7a3c', gd='#0d4a1e';
-  const w = isSmall ? 5.5 : 8;
-  const hl = `rgba(255,255,255,0.28)`;
-
-  // Helper: render one bamboo stick as SVG rect at angle between two points
-  // Rendered inline as SVG elements — no component call
-  const sticks = [
-    // Top ∧: peaks at (50,12)
-    { x1:24,y1:44, x2:50,y2:12 },
-    { x1:76,y1:44, x2:50,y2:12 },
-    { x1:24,y1:44, x2:38,y2:28 },
-    { x1:76,y1:44, x2:62,y2:28 },
-    // Bottom ∨: valley at (50,88)
-    { x1:24,y1:56, x2:50,y2:88 },
-    { x1:76,y1:56, x2:50,y2:88 },
-    { x1:24,y1:56, x2:38,y2:72 },
-    { x1:76,y1:56, x2:62,y2:72 },
-  ];
-
+// 1索: stylised green bird/peacock — matches screenshots showing green phoenix-style bird
+function Sou1Face() {
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-      {sticks.map((s,i) => {
-        const dx=s.x2-s.x1, dy=s.y2-s.y1;
-        const len=Math.sqrt(dx*dx+dy*dy);
-        const ang=Math.atan2(dy,dx)*180/Math.PI;
-        const cx=(s.x1+s.x2)/2, cy=(s.y1+s.y2)/2;
-        return (
-          <g key={i} transform={`translate(${cx},${cy}) rotate(${ang+90})`}>
-            <rect x={-w/2} y={-len/2} width={w} height={len} rx={w*0.38} fill={g}/>
-            <rect x={-w/2-0.5} y={-1.2} width={w+1} height={2.4} rx={1.2} fill={gd}/>
-            <rect x={-w/2+1} y={-len/2+2} width={w*0.26} height={len-4} rx={0.6} fill={hl}/>
-          </g>
-        );
-      })}
+      {/* Ground line */}
+      <line x1={18} y1={80} x2={82} y2={78} stroke="#5a3a10" strokeWidth={2.5} strokeLinecap="round"/>
+      <line x1={50} y1={79} x2={50} y2={90} stroke="#5a3a10" strokeWidth={2} strokeLinecap="round"/>
+      {/* Body */}
+      <ellipse cx={48} cy={58} rx={17} ry={12} fill="#1a7a3c"/>
+      {/* Wing */}
+      <ellipse cx={36} cy={61} rx={13} ry={8} fill="#2ecc71" transform="rotate(-15,36,61)"/>
+      {/* Head */}
+      <circle cx={66} cy={46} r={11} fill="#1a7a3c"/>
+      {/* Eye */}
+      <circle cx={70} cy={43} r={3} fill="white"/>
+      <circle cx={71} cy={43} r={1.5} fill="#111"/>
+      {/* Beak */}
+      <polygon points="74,47 83,44 74,50" fill="#d4a020"/>
+      {/* Crest feathers */}
+      <path d="M64,36 Q60,24 65,18" stroke="#1a7a3c" strokeWidth={3} fill="none" strokeLinecap="round"/>
+      <path d="M68,35 Q68,22 72,17" stroke="#2ecc71" strokeWidth={2.5} fill="none" strokeLinecap="round"/>
+      {/* Tail feathers */}
+      <path d="M33,62 Q12,48 10,30" stroke="#1a7a3c" strokeWidth={3.5} fill="none" strokeLinecap="round"/>
+      <path d="M31,66 Q9,58 8,44" stroke="#27ae60" strokeWidth={3} fill="none" strokeLinecap="round"/>
+      <path d="M33,70 Q14,72 12,60" stroke="#c0392b" strokeWidth={2.5} fill="none" strokeLinecap="round"/>
+      <path d="M35,72 Q20,80 20,70" stroke="#e8b84d" strokeWidth={2} fill="none" strokeLinecap="round"/>
     </svg>
   );
 }
 
+// 8索 — bold W (top) + M (bottom) arch shapes, matching reference app style
+function Sou8Face({ isSmall }) {
+  const g = '#1a7a3c';
+  const sw = isSmall ? 5.5 : 9;
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
+      {/* W shape — top half: two peaks meeting in centre */}
+      <path d="M6,42 L22,10 L50,36 L78,10 L94,42"
+        stroke={g} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      {/* M shape — bottom half: two valleys meeting in centre */}
+      <path d="M6,58 L22,90 L50,64 L78,90 L94,58"
+        stroke={g} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      {/* Subtle highlight on W */}
+      <path d="M6,42 L22,10 L50,36 L78,10 L94,42"
+        stroke="rgba(255,255,255,0.22)" strokeWidth={sw*0.38} strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      {/* Subtle highlight on M */}
+      <path d="M6,58 L22,90 L50,64 L78,90 L94,58"
+        stroke="rgba(255,255,255,0.22)" strokeWidth={sw*0.38} strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    </svg>
+  );
+}
+
+const S_COL = {
+  2: ['#1a7a3c','#1a7a3c'],
+  3: ['#1a7a3c','#1a7a3c','#1a7a3c'],
+  4: ['#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'],
+  5: ['#1a7a3c','#1a7a3c','#c0392b','#1a7a3c','#1a7a3c'], // centre red
+  6: ['#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'],
+  7: ['#c0392b','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'], // top red
+  9: ['#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'],
+};
+const S_POS = {
+  2:  [[50,27],[50,73]],
+  3:  [[50,18],[50,50],[50,82]],
+  4:  [[34,27],[66,27],[34,73],[66,73]],
+  5:  [[34,18],[66,18],[50,50],[34,82],[66,82]],
+  6:  [[34,14],[66,14],[34,50],[66,50],[34,86],[66,86]],
+  // 7索: 1 top-centre (red) + 3 rows of 2 green — matches reference screenshot
+  7:  [[50,10],  [34,32],[66,32],  [34,55],[66,55],  [34,78],[66,78]],
+  9:  [[26,14],[50,14],[74,14],[26,50],[50,50],[74,50],[26,86],[50,86],[74,86]],
+};
+
 function SouFace({ n, isSmall }) {
-  const sw = isSmall ? 7 : 10, sh = isSmall ? 22 : 30;
-  if (n===1) {
-    return (
-      <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-        <line x1={25} y1={78} x2={75} y2={70} stroke="#5a3a10" strokeWidth={3} strokeLinecap="round"/>
-        <line x1={50} y1={74} x2={50} y2={86} stroke="#5a3a10" strokeWidth={2.5} strokeLinecap="round"/>
-        <ellipse cx={48} cy={54} rx={15} ry={11} fill="#c0392b"/>
-        <ellipse cx={38} cy={57} rx={11} ry={7} fill="#1a6ea8" transform="rotate(-12,38,57)"/>
-        <circle cx={63} cy={46} r={9} fill="#c0392b"/>
-        <circle cx={66} cy={43} r={2.5} fill="white"/>
-        <circle cx={67} cy={43} r={1.2} fill="#111"/>
-        <polygon points="71,46 78,43 71,49" fill="#d4a020"/>
-        <path d="M33,58 Q15,42 17,26" stroke="#1a7a3c" strokeWidth={3} fill="none" strokeLinecap="round"/>
-        <path d="M32,61 Q12,54 14,42" stroke="#2980b9" strokeWidth={2.5} fill="none" strokeLinecap="round"/>
-        <path d="M34,63 Q16,66 18,55" stroke="#c0392b" strokeWidth={2.5} fill="none" strokeLinecap="round"/>
-      </svg>
-    );
-  }
+  const sw = isSmall ? 6 : 9, sh = isSmall ? 18 : 26;
+  if (n===1) return <Sou1Face/>;
   if (n===8) return <Sou8Face isSmall={isSmall}/>;
   const pos=S_POS[n]||[], col=S_COL[n]||[];
   return (
@@ -181,28 +194,29 @@ function SouFace({ n, isSmall }) {
 }
 
 function ManFace({ n, isSmall }) {
-  // From screenshots: large black bold character, red 萬 below, equal size
-  const sz = isSmall ? '0.78em' : '1.18em';
+  // From screenshots: bold black number character + red 萬 below, both large and equal
+  const numSz = isSmall ? '1.05em' : '1.55em';
+  const wanSz = isSmall ? '0.75em' : '1.1em';
   return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:0,lineHeight:1.05}}>
-      <span style={{fontSize:sz,fontWeight:900,color:'#111'}}>{CN_NUM[n-1]}</span>
-      <span style={{fontSize:sz,color:'#c0392b',fontWeight:900}}>萬</span>
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:0,lineHeight:1}}>
+      <span style={{fontSize:numSz,fontWeight:900,color:'#1a1a1a',lineHeight:1}}>{CN_NUM[n-1]}</span>
+      <span style={{fontSize:wanSz,fontWeight:900,color:'#c0392b',lineHeight:1.1}}>萬</span>
     </div>
   );
 }
 function HonourFace({ tkey, isSmall }) {
   if (tkey === 'haku') {
-    // 白板: from screenshots — thin tall white rectangle with blue double border only
     return (
       <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-        <rect x={14} y={6} width={72} height={88} rx={4} fill="white" stroke="#1a6ea8" strokeWidth={5}/>
-        <rect x={20} y={12} width={60} height={76} rx={2} fill="none" stroke="#1a6ea8" strokeWidth={2.5}/>
+        <rect x={12} y={5} width={76} height={90} rx={4} fill="white" stroke="#1a6ea8" strokeWidth={5}/>
+        <rect x={19} y={12} width={62} height={76} rx={2} fill="none" stroke="#1a6ea8" strokeWidth={2.5}/>
       </svg>
     );
   }
+  const sz = isSmall ? '1.0em' : '1.6em';
   return (
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%'}}>
-      <span style={{fontSize:isSmall?'.9em':'1.5em',fontWeight:900,color:HONOUR_COLOR[tkey]||'#333',lineHeight:1}}>{TILE_DISPLAY[tkey]||tkey}</span>
+      <span style={{fontSize:sz,fontWeight:900,color:HONOUR_COLOR[tkey]||'#1a1a1a',lineHeight:1}}>{TILE_DISPLAY[tkey]||tkey}</span>
     </div>
   );
 }
@@ -1083,6 +1097,39 @@ export default function App() {
   // Build per-tile discard info map for tooltip
   const discardInfoMap = hint ? Object.fromEntries(hint.discardAnalysis.map(d=>[d.tile.id, d])) : {};
 
+  // Lane-aware best discard: if a lane strategy is active, override isBestDiscard
+  // to only mark tiles that are actually undesirable for that lane
+  const laneAwareDiscardMap = (() => {
+    if (!hint) return discardInfoMap;
+    const scan = (() => { try { return scanBestLane(humanHand, humanMelds, seatWinds[humanIdx], session.round, session.minFan); } catch(e){return null;} })();
+    const lane = chosenLane || scan?.best;
+    const targetSuit = scan?.targetSuitKey; // 'man'|'pin'|'sou'|null
+    if (!lane || !targetSuit) return discardInfoMap;
+
+    // For flush/halfFlush lanes: best discard = non-target-suit tiles (honouring lane)
+    const keepSuits = (lane === 'flush')
+      ? [targetSuit]
+      : (lane === 'halfFlush') ? [targetSuit] : null; // halfFlush keeps target suit + honours
+
+    if (!keepSuits) return discardInfoMap;
+
+    return Object.fromEntries(Object.entries(discardInfoMap).map(([id, d]) => {
+      const key = d.tile.key;
+      const isSuitTile = ['man','pin','sou'].some(s => key.startsWith(s));
+      const isTargetSuit = keepSuits.some(s => key.startsWith(s));
+      const isHonour = !isSuitTile;
+      // For flush: discard non-target suit tiles → isBestDiscard only on those
+      // For halfFlush: discard pure suit tiles that aren't target suit
+      const shouldDiscard = lane === 'flush'
+        ? !isTargetSuit
+        : (lane === 'halfFlush' ? (isSuitTile && !isTargetSuit) : d.isBestDiscard);
+      return [id, { ...d, isBestDiscard: shouldDiscard && d.isBestDiscard !== false
+        // Only mark as best if shanten is also reasonable (not already worse than keeping)
+        && (d.shantenAfter <= (hint.shanten + 1))
+      }];
+    }));
+  })();
+
   return (
     <div className="app" onClick={()=>setTooltip(null)}>
       {/* Header */}
@@ -1219,7 +1266,7 @@ export default function App() {
           {/* Hand rack — always sorted, drawn tile always at right */}
           <div className="hand-rack" style={{position:'relative'}}>
             {handTilesNoDrawn.map(t=>{
-              const da = discardInfoMap[t.id];
+              const da = laneAwareDiscardMap[t.id];
               const isHintBest = hint && da?.isBestDiscard;
               const isHint = hint && da?.leadsToTenpai;
               const dLevel = dangerMap[t.key] ?? -1;
@@ -1252,20 +1299,20 @@ export default function App() {
                   tile={drawnTileObj}
                   drawn
                   selected={selectedTile?.id===drawnTileObj.id}
-                  hint={hint && discardInfoMap[drawnTileObj.id]?.leadsToTenpai && !discardInfoMap[drawnTileObj.id]?.isBestDiscard}
-                  hintBest={hint && discardInfoMap[drawnTileObj.id]?.isBestDiscard}
+                  hint={hint && laneAwareDiscardMap[drawnTileObj.id]?.leadsToTenpai && !laneAwareDiscardMap[drawnTileObj.id]?.isBestDiscard}
+                  hintBest={hint && laneAwareDiscardMap[drawnTileObj.id]?.isBestDiscard}
                   highlighted={hoverKey===drawnTileObj.key}
                   onClick={()=>handleTileClick(drawnTileObj)}
                   onMouseEnter={()=>{
                     setHoverKey(drawnTileObj.key);
-                    const da=discardInfoMap[drawnTileObj.id];
+                    const da=laneAwareDiscardMap[drawnTileObj.id];
                     if(hint&&da) setTooltip({tileId:drawnTileObj.id, discardInfo:da});
                   }}
                   onMouseLeave={()=>{ setHoverKey(null); setTooltip(null); }}
                   danger={dangerMap[drawnTileObj.key] ?? -1}
                 />
                 {tooltip?.tileId===drawnTileObj.id && (
-                  <DangerTooltip dangerLevel={dangerMap[drawnTileObj.key]??-1} discardInfo={discardInfoMap[drawnTileObj.id]} visible/>
+                  <DangerTooltip dangerLevel={dangerMap[drawnTileObj.key]??-1} discardInfo={laneAwareDiscardMap[drawnTileObj.id]} visible/>
                 )}
               </div>
             </>}
