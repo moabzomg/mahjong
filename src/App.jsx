@@ -415,9 +415,47 @@ function FlowerRow({ flowers }) {
 }
 
 // ─── Opponent Panel ───────────────────────────────────────────────────────────
-function OpponentPanel({ player, hand, melds, discards, flowers, seatWind, isDealer, isTurn, debug, highlightKey, seatIdx, flashClaim, flashType }) {
+function OpponentPanel({ player, hand, melds, discards, flowers, seatWind, isDealer, isTurn, debug, highlightKey, seatIdx, flashClaim, flashType, rowMode }) {
   const claimWord = flashClaim ? (flashType==='kong'?'槓！':flashType==='chi'?'上！':'碰！') : null;
   const claimColor = flashType==='kong'?'#8e44ad':flashType==='chi'?'#1a6ea8':'#c8973a';
+
+  if (rowMode) {
+    return (
+      <div className={`player-row player-row--opp${isTurn?' player-row--active':''}`} style={{position:'relative'}}>
+        {claimWord && (
+          <div className="claim-word-overlay" style={{color:claimColor}}>{claimWord}</div>
+        )}
+        <div className="prow-meta">
+          <span className="badge badge-wind">{WIND_LABELS[seatWind]}</span>
+          {isDealer&&<span className="badge badge-dealer">莊</span>}
+          {isTurn&&<span className="badge badge-turn">●</span>}
+          <span className="prow-name">{player.name}</span>
+          <span className="opp-remain">{hand.length}張</span>
+          {debug&&!player.isHuman&&<span className="badge badge-debug" style={{fontSize:'.6rem'}}>{LANE_LABELS[player.strategy]||player.strategy}</span>}
+          {flowers?.length>0&&<div className="flower-row" style={{marginLeft:0}}>
+            {flowers.map(f=>{const isRed=FLOWERS.indexOf(f.key)>=4;return <span key={f.id} className={`flower-badge ${isRed?'red':'green'}`} style={{fontSize:'.6rem'}}>{FLOWER_NAMES[f.key]}</span>;})}
+          </div>}
+          {melds.length>0&&(
+            <div className="melds-row" style={{marginLeft:4}}>
+              {melds.map((m,i)=>(
+                <div key={i} className="meld-group">
+                  {m.tiles.map(t=><Tile key={t.id} tile={t} small/>)}
+                  <span className="meld-label">{m.type==='chi'?'上':m.type==='pong'?'碰':'槓'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className={debug ? "prow-tiles opp-tiles-debug" : "prow-tiles"}>
+          {debug
+            ? hand.map(t=><Tile key={t.id} tile={t} small highlighted={highlightKey===t.key}/>)
+            : hand.map((_,i)=><TileBack key={i} small/>)
+          }
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="aip" style={{position:'relative'}}>
       {claimWord && (
@@ -1074,15 +1112,14 @@ export default function App() {
         ))}
       </div>
 
-      {/* Table */}
-      <div className="table">
-        <OpponentPanel player={players[topPi]} hand={hands[topPi]} melds={melds[topPi]} discards={discards[topPi]} flowers={flowers[topPi]} seatWind={seatWinds[topPi]} isDealer={topPi===dealer} isTurn={topPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey} seatIdx={topPi} flashClaim={claimAnnounce?.player===topPi} flashType={claimAnnounce?.type}/>
-        <OpponentPanel player={players[leftPi]} hand={hands[leftPi]} melds={melds[leftPi]} discards={discards[leftPi]} flowers={flowers[leftPi]} seatWind={seatWinds[leftPi]} isDealer={leftPi===dealer} isTurn={leftPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey} seatIdx={leftPi} flashClaim={claimAnnounce?.player===leftPi} flashType={claimAnnounce?.type}/>
-        <OpponentPanel player={players[rightPi]} hand={hands[rightPi]} melds={melds[rightPi]} discards={discards[rightPi]} flowers={flowers[rightPi]} seatWind={seatWinds[rightPi]} isDealer={rightPi===dealer} isTurn={rightPi===currentPlayer&&!result} debug={debug} highlightKey={hoverKey} seatIdx={rightPi} flashClaim={claimAnnounce?.player===rightPi} flashType={claimAnnounce?.type}/>
+      {/* Table — vertical rows layout */}
+      <div className="table-rows">
 
-        <div className="center">
+        {/* Sidebar: log + discard pools + claim prompt */}
+        <div className="rows-sidebar">
+          <div className="wall-count">剩牌：<span>{wall?.length||0}</span> 張</div>
           <div className="discards-grid">
-            {[topPi,rightPi,leftPi,humanIdx].map(pi=>(
+            {[humanIdx,topPi,rightPi,leftPi].map(pi=>(
               <div key={pi} className="dpool">
                 <div className="dpool-label">{players[pi].name} 打出</div>
                 <div className="dpool-tiles">
@@ -1096,7 +1133,6 @@ export default function App() {
               </div>
             ))}
           </div>
-          <div className="wall-count">剩牌：<span>{wall?.length||0}</span> 張</div>
           <div className="game-log">
             {[...log].reverse().slice(0,15).map((e,i)=><div key={i} className="log-entry">{e}</div>)}
           </div>
@@ -1109,80 +1145,76 @@ export default function App() {
           )}
         </div>
 
-        {/* Bottom — human */}
-        <div className="bottom-area">
-          <div className="hand-top">
-            <span className="hand-label">{players[humanIdx].name}</span>
-            <span className="badge badge-wind">{WIND_LABELS[seatWinds[humanIdx]]}</span>
-            {humanIdx===dealer&&<span className="badge badge-dealer">莊</span>}
-            <FlowerRow flowers={flowers[humanIdx]}/>
-            {discards[humanIdx].length>0&&(
-              <div className="last-discard-label">
-                上一打：
-                <div className="last-discard-tile">
-                  <TileFace tkey={discards[humanIdx][discards[humanIdx].length-1].key} isSmall/>
+        {/* Main column: 4 player rows */}
+        <div className="rows-main">
+
+          {/* Row 0 — Human (top) */}
+          <div className={`player-row player-row--human${humanIdx===currentPlayer&&!result?' player-row--active':''}`}>
+            <div className="prow-meta">
+              <span className="badge badge-wind">{WIND_LABELS[seatWinds[humanIdx]]}</span>
+              {humanIdx===dealer&&<span className="badge badge-dealer">莊</span>}
+              {humanIdx===currentPlayer&&!result&&<span className="badge badge-turn">●</span>}
+              <span className="prow-name">{players[humanIdx].name}</span>
+              <FlowerRow flowers={flowers[humanIdx]}/>
+              {humanMelds.length>0&&(
+                <div className="melds-row">
+                  {humanMelds.map((m,i)=>(
+                    <div key={i} className="meld-group">
+                      {m.tiles.map(t=><Tile key={t.id} tile={t} small/>)}
+                      <span className="meld-label">{m.type==='chi'?'上':m.type==='pong'?'碰':'槓'}</span>
+                    </div>
+                  ))}
                 </div>
-                <span style={{fontSize:'.65rem',color:'var(--dim)'}}>{TILE_DISPLAY[discards[humanIdx][discards[humanIdx].length-1].key]}</span>
-              </div>
-            )}
-            {humanMelds.length>0&&(
-              <div className="melds-row">
-                {humanMelds.map((m,i)=>(
-                  <div key={i} className="meld-group">
-                    {m.tiles.map(t=><Tile key={t.id} tile={t} small/>)}
-                    <span className="meld-label">{m.type==='chi'?'上':m.type==='pong'?'碰':'槓'}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
-              {/* 自摸 button */}
-              {hand._canSelfDraw&&isHumanTurn&&(()=>{
-                const p=humanIdx;
-                const {fan}=calcFan(hand.hands[p],hand.melds[p],hand.drawnTile,true,
-                  hand.seatWinds[p],hand.session.round,hand.flowers[p]);
-                const meetsMin = fan >= hand.session.minFan;
-                return <button className={`btn-zimo${meetsMin?' zimo-ok':' zimo-nok'}`}
-                  title={meetsMin?`自摸 ${fan}番！`:` ${fan}番 (需${hand.session.minFan}番起糊)`}
-                  onClick={handleSelfDraw}>
-                  🀄 自摸！{fan}番
-                </button>;
-              })()}
-              {/* 暗槓 — when human has 4 of same tile in hand */}
-              {isHumanTurn&&phase==='discard'&&(()=>{
-                const cnt={};
-                for(const t of humanHand) cnt[t.key]=(cnt[t.key]||0)+1;
-                const kongKeys=Object.entries(cnt).filter(([,v])=>v>=4).map(([k])=>k);
-                if(kongKeys.length===0) return null;
-                return kongKeys.map(key=>(
-                  <button key={key} className="btn btn-purple"
-                    onClick={()=>setHand(prev=>declareAnKong(prev,humanIdx,key))}>
-                    暗槓 {TILE_DISPLAY[key]||key}
-                  </button>
-                ));
-              })()}
-              {/* 加槓 — when human has pong meld + 4th tile in hand */}
-              {isHumanTurn&&phase==='discard'&&(()=>{
-                const addKongOptions=[];
-                for(const m of humanMelds){
-                  if(m.type==='pong'){
-                    const extra=humanHand.find(t=>t.key===m.tiles[0]?.key);
-                    if(extra) addKongOptions.push({key:m.tiles[0]?.key, tileId:extra.id});
+              )}
+              <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                {/* 自摸 button */}
+                {hand._canSelfDraw&&isHumanTurn&&(()=>{
+                  const p=humanIdx;
+                  const {fan}=calcFan(hand.hands[p],hand.melds[p],hand.drawnTile,true,
+                    hand.seatWinds[p],hand.session.round,hand.flowers[p]);
+                  const meetsMin = fan >= hand.session.minFan;
+                  return <button className={`btn-zimo${meetsMin?' zimo-ok':' zimo-nok'}`}
+                    title={meetsMin?`自摸 ${fan}番！`:` ${fan}番 (需${hand.session.minFan}番起糊)`}
+                    onClick={handleSelfDraw}>
+                    🀄 自摸！{fan}番
+                  </button>;
+                })()}
+                {/* 暗槓 */}
+                {isHumanTurn&&phase==='discard'&&(()=>{
+                  const cnt={};
+                  for(const t of humanHand) cnt[t.key]=(cnt[t.key]||0)+1;
+                  const kongKeys=Object.entries(cnt).filter(([,v])=>v>=4).map(([k])=>k);
+                  if(kongKeys.length===0) return null;
+                  return kongKeys.map(key=>(
+                    <button key={key} className="btn btn-purple"
+                      onClick={()=>setHand(prev=>declareAnKong(prev,humanIdx,key))}>
+                      暗槓 {TILE_DISPLAY[key]||key}
+                    </button>
+                  ));
+                })()}
+                {/* 加槓 */}
+                {isHumanTurn&&phase==='discard'&&(()=>{
+                  const addKongOptions=[];
+                  for(const m of humanMelds){
+                    if(m.type==='pong'){
+                      const extra=humanHand.find(t=>t.key===m.tiles[0]?.key);
+                      if(extra) addKongOptions.push({key:m.tiles[0]?.key, tileId:extra.id});
+                    }
                   }
-                }
-                if(addKongOptions.length===0) return null;
-                return addKongOptions.map(opt=>(
-                  <button key={opt.tileId} className="btn btn-purple"
-                    onClick={()=>setHand(prev=>declareAddKong(prev,humanIdx,opt.tileId))}>
-                    加槓 {TILE_DISPLAY[opt.key]||opt.key}
-                  </button>
-                ));
-              })()}
-              <button className="btn btn-red"
-                disabled={!selectedTile||!isHumanTurn||phase!=='discard'}
-                onClick={handleDiscard}>打出所選</button>
+                  if(addKongOptions.length===0) return null;
+                  return addKongOptions.map(opt=>(
+                    <button key={opt.tileId} className="btn btn-purple"
+                      onClick={()=>setHand(prev=>declareAddKong(prev,humanIdx,opt.tileId))}>
+                      加槓 {TILE_DISPLAY[opt.key]||opt.key}
+                    </button>
+                  ));
+                })()}
+                <button className="btn btn-red"
+                  disabled={!selectedTile||!isHumanTurn||phase!=='discard'}
+                  onClick={handleDiscard}>打出所選</button>
+              </div>
             </div>
-          </div>
+          {/* human hand rack rendered below prow-meta */}
 
           {/* Hand rack — always sorted, drawn tile always at right */}
           <div className="hand-rack" style={{position:'relative'}}>
@@ -1327,8 +1359,23 @@ export default function App() {
             minFan={session.minFan} chosenLane={chosenLane}
             onChoose={setChosenLane}/>
           <TileTracker hand={humanHand} discards={discards} melds={melds} highlightKey={hoverKey} debug={debug} wall={wall}/>
-        </div>
-      </div>
+          </div>{/* end player-row--human */}
+
+          {/* Rows 1-3 — Opponents */}
+          {[topPi, rightPi, leftPi].map(pi=>(
+            <OpponentPanel key={pi}
+              player={players[pi]} hand={hands[pi]} melds={melds[pi]}
+              discards={discards[pi]} flowers={flowers[pi]}
+              seatWind={seatWinds[pi]} isDealer={pi===dealer}
+              isTurn={pi===currentPlayer&&!result}
+              debug={debug} highlightKey={hoverKey} seatIdx={pi}
+              flashClaim={claimAnnounce?.player===pi}
+              flashType={claimAnnounce?.type}
+              rowMode/>
+          ))}
+
+        </div>{/* end rows-main */}
+      </div>{/* end table-rows */}
 
       {result&&phase==='finished'&&<WinOverlay result={result} players={players} dealer={dealer} hands={hands} melds={melds} flowers={flowers} seatWinds={seatWinds} onNext={handleNextHand}/>}
       {showRules&&<RulesTab onClose={()=>setShowRules(false)}/>}

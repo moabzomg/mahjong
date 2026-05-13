@@ -108,7 +108,92 @@ body{background:var(--felt-dark);color:var(--text);font-family:'Segoe UI','Noto 
 .badge-turn{background:var(--gold);color:#000}
 .badge-debug{background:#6a0dad;color:#fff}
 
-/* ─── Table layout ───────────────────────────────────────────────────────────── */
+/* ─── Table layout (ROWS mode) ───────────────────────────────────────────────── */
+.table-rows {
+  flex: 1;
+  display: flex;
+  gap: 5px;
+  padding: 5px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Sidebar: discard pools + log + claim prompt */
+.rows-sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow: hidden;
+}
+.rows-sidebar .wall-count { flex-shrink: 0; }
+.rows-sidebar .discards-grid { flex: 1; min-height: 0; overflow: hidden; }
+.rows-sidebar .game-log { flex-shrink: 0; }
+.rows-sidebar .claim-prompt {
+  position: static;
+  transform: none;
+  margin-top: 4px;
+  min-width: unset;
+  width: 100%;
+}
+
+/* Main column: stacked player rows */
+.rows-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Every player row */
+.player-row {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  position: relative;
+  flex-shrink: 0;
+}
+.player-row--active {
+  border-color: rgba(200,151,58,0.7);
+  background: rgba(200,151,58,0.06);
+}
+.player-row--human {
+  border-color: rgba(200,151,58,0.45);
+  background: rgba(0,0,0,0.32);
+}
+
+/* Meta row: badges + name + melds + action buttons */
+.prow-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+}
+.prow-name {
+  font-weight: 700;
+  color: var(--gold-lt);
+}
+
+/* Tile strip in a row */
+.prow-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-content: flex-start;
+  min-height: 30px;
+}
+
+/* Keep old grid layout classes intact for anything that still uses .table */
 .table{flex:1;display:grid;grid-template-areas:". top ." "left center right" ". bottom .";grid-template-columns:200px 1fr 200px;grid-template-rows:160px 1fr auto;gap:4px;padding:5px;position:relative;min-height:0}
 .aip.top{grid-area:top;height:170px;overflow:hidden}
 .aip.left{grid-area:left;overflow:hidden;display:flex;flex-direction:column}
