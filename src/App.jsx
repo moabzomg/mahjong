@@ -28,33 +28,48 @@ const FLOWER_COLOR = {
 };
 
 // ── 筒 (Pin / Dots) ──────────────────────────────────────────────────────────
-// From screenshots: each dot = dark green outer filled circle + white ring gap + dark filled inner
-// 1筒: large mandala (red outer, white, green, white, red centre)
-// 2-9筒: uniform dark-green dots with white ring, arranged per standard positions
-// Dot positions: [cx, cy] in 0-100 viewBox
+// Positions from reference screenshots — DIAGONAL arrangements:
+// 2筒: top-left + bottom-right (diagonal)
+// 3筒: bottom-left + centre + top-right (diagonal)
+// 4筒: 2×2 corners
+// 5筒: 4 corners + centre
+// 6筒: 2 cols × 3 rows
+// 7筒: 3 top + 2 mid + 2 bot  (OR from ref: top-3, then 2+2)
+// 8筒: 2 cols × 4 rows
+// 9筒: 3×3
+// Colours: from reference — 2筒 blue+green, 3筒 blue+red+green, etc.
+// (matching the original handover doc colour spec exactly)
 const P_POS = {
   1: [[50,50]],
-  2: [[32,50],[68,50]],                                          // 2 side by side
-  3: [[22,50],[50,50],[78,50]],                                  // 3 in a row
-  4: [[32,28],[68,28],[32,72],[68,72]],                          // 2×2
-  5: [[32,22],[68,22],[50,50],[32,78],[68,78]],                  // 2+1+2
-  6: [[32,18],[68,18],[32,50],[68,50],[32,82],[68,82]],          // 2×3
-  7: [[22,18],[50,18],[78,18],[32,50],[68,50],[32,82],[68,82]],  // 3+2+2
-  8: [[32,14],[68,14],[32,38],[68,38],[32,62],[68,62],[32,86],[68,86]], // 2×4
-  9: [[22,18],[50,18],[78,18],[22,50],[50,50],[78,50],[22,82],[50,82],[78,82]], // 3×3
+  2: [[35,30],[65,70]],                                             // diagonal TL→BR
+  3: [[28,72],[50,50],[72,28]],                                     // diagonal BL→C→TR
+  4: [[33,30],[67,30],[33,70],[67,70]],                             // 2×2
+  5: [[33,22],[67,22],[50,50],[33,78],[67,78]],                     // corners + centre
+  6: [[33,18],[67,18],[33,50],[67,50],[33,82],[67,82]],             // 2×3
+  7: [[26,18],[50,18],[74,18],[33,50],[67,50],[33,82],[67,82]],     // 3+2+2
+  8: [[33,12],[67,12],[33,37],[67,37],[33,63],[67,63],[33,88],[67,88]], // 2×4
+  9: [[25,18],[50,18],[75,18],[25,50],[50,50],[75,50],[25,82],[50,82],[75,82]], // 3×3
 };
-// Colours: mostly dark green; exceptions from reference screenshots:
-// 3筒: centre red; 5筒: centre red; 7筒: top-left red per reference
+// Colours per dot — from handover doc spec and reference screenshots:
+// 2筒: bottom=blue, top=green
+// 3筒: BL=blue, C=red, TR=green
+// 4筒: BL=blue, BR=green, TL=green, TR=blue
+// 5筒: BL=blue, BR=green, C=red, TL=green, TR=blue
+// 6筒: bottom 4 red, top 2 green (2 cols × 3 rows, top=green, mid=red, bot=red)
+// 7筒: 4 green corners, 3 red diagonal TL→C→BR
+// 8筒: all blue
+// 9筒: bottom row green, mid row red, top row blue
+const BLUE='#1a6ea8', RED='#c0392b', GREEN='#1a7a3c';
 const P_COL = {
-  1: ['#c0392b'],
-  2: ['#1a4a22','#1a4a22'],
-  3: ['#1a4a22','#c0392b','#1a4a22'],
-  4: ['#1a4a22','#1a4a22','#1a4a22','#1a4a22'],
-  5: ['#1a4a22','#1a4a22','#c0392b','#1a4a22','#1a4a22'],
-  6: ['#1a4a22','#1a4a22','#1a4a22','#1a4a22','#1a4a22','#1a4a22'],
-  7: ['#1a4a22','#1a4a22','#1a4a22','#1a4a22','#1a4a22','#1a4a22','#1a4a22'],
-  8: ['#1a4a22','#1a4a22','#1a4a22','#1a4a22','#1a4a22','#1a4a22','#1a4a22','#1a4a22'],
-  9: ['#1a4a22','#1a4a22','#1a4a22','#1a4a22','#1a4a22','#1a4a22','#1a4a22','#1a4a22','#1a4a22'],
+  1: [RED],
+  2: [GREEN, BLUE],                                                  // top=green, bottom=blue
+  3: [BLUE, RED, GREEN],                                             // BL=blue, C=red, TR=green
+  4: [BLUE, GREEN, GREEN, BLUE],                                     // TL, TR, BL, BR → BL=blue,BR=green,TL=green,TR=blue
+  5: [GREEN, BLUE, RED, BLUE, GREEN],                                // TL=green,TR=blue,C=red,BL=blue,BR=green
+  6: [GREEN, GREEN, RED, RED, RED, RED],                             // top2=green, rest=red
+  7: [GREEN, GREEN, GREEN, RED, GREEN, RED, RED],                    // 3 top green, then mixed
+  8: [BLUE,BLUE,BLUE,BLUE,BLUE,BLUE,BLUE,BLUE],                     // all blue
+  9: [BLUE,BLUE,BLUE, RED,RED,RED, GREEN,GREEN,GREEN],              // top=blue, mid=red, bot=green
 };
 
 function PinDot({ cx, cy, r, color }) {
@@ -70,12 +85,13 @@ function PinDot({ cx, cy, r, color }) {
       </g>
     );
   }
-  // Standard dot: dark outer → white ring → dark inner
+  // Standard dot: coloured outer ring → white gap → coloured inner fill
+  // The ring style: each dot shows the colour prominently
   return (
     <g>
-      <circle cx={cx} cy={cy} r={r}      fill={color}/>
-      <circle cx={cx} cy={cy} r={r*0.68} fill="white"/>
-      <circle cx={cx} cy={cy} r={r*0.44} fill={color}/>
+      <circle cx={cx} cy={cy} r={r}       fill={color}/>
+      <circle cx={cx} cy={cy} r={r*0.66}  fill="white"/>
+      <circle cx={cx} cy={cy} r={r*0.42}  fill={color}/>
     </g>
   );
 }
@@ -160,45 +176,42 @@ function Sou8Face({ isSmall }) {
   );
 }
 
-// Sou stick grid layouts — [cx, cy] positions, evenly distributed horizontally
-// All sticks are tall vertical bars; cx spread across tile width
+// Sou stick grid layouts — cx spread evenly, cy always centred at 50
+// Sticks are TALL (nearly full tile height) and THIN, spread horizontally
 const S_POS = {
-  // 2索: 2 sticks side by side centred
   2:  [[35,50],[65,50]],
-  // 3索: 3 sticks evenly spread
   3:  [[25,50],[50,50],[75,50]],
-  // 4索: 2×2
-  4:  [[35,30],[65,30],[35,70],[65,70]],
-  // 5索: 2 top + 1 mid + 2 bot
-  5:  [[35,22],[65,22],[50,50],[35,78],[65,78]],
-  // 6索: 2×3
-  6:  [[35,18],[65,18],[35,50],[65,50],[35,82],[65,82]],
-  // 7索: 1 top-centre (red) + 3 rows of 2
-  7:  [[50,12],[35,35],[65,35],[35,60],[65,60],[35,83],[65,83]],
-  // 9索: 3×3
-  9:  [[25,18],[50,18],[75,18],[25,50],[50,50],[75,50],[25,82],[50,82],[75,82]],
+  4:  [[35,28],[65,28],[35,72],[65,72]],
+  5:  [[35,20],[65,20],[50,50],[35,80],[65,80]],
+  6:  [[35,17],[65,17],[35,50],[65,50],[35,83],[65,83]],
+  7:  [[50,12],[35,35],[65,35],[35,58],[65,58],[35,82],[65,82]],
+  9:  [[25,17],[50,17],[75,17],[25,50],[50,50],[75,50],[25,83],[50,83],[75,83]],
 };
 const S_COL = {
-  2: ['#1a7a3c','#1a7a3c'],
-  3: ['#1a7a3c','#1a7a3c','#1a7a3c'],
-  4: ['#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'],
-  5: ['#1a7a3c','#1a7a3c','#c0392b','#1a7a3c','#1a7a3c'],
-  6: ['#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'],
-  7: ['#c0392b','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'],
-  9: ['#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c','#1a7a3c'],
+  2: [GREEN, GREEN],
+  3: [GREEN, GREEN, GREEN],
+  4: [GREEN, GREEN, GREEN, GREEN],
+  5: [GREEN, GREEN, RED,   GREEN, GREEN],
+  6: [GREEN, GREEN, GREEN, GREEN, GREEN, GREEN],
+  7: [RED,   GREEN, GREEN, GREEN, GREEN, GREEN, GREEN],
+  9: [GREEN, GREEN, GREEN, GREEN, GREEN, GREEN, GREEN, GREEN, GREEN],
 };
 
 function SouFace({ n, isSmall }) {
   if (n===1) return <Sou1Face/>;
   if (n===8) return <Sou8Face isSmall={isSmall}/>;
   const pos = S_POS[n]||[], col = S_COL[n]||[];
-  // Stick dimensions: thin width, tall height
-  const sw = isSmall ? 7 : 11;
-  const sh = isSmall ? 22 : 34;
+  // Sticks: tall (fill most of tile height), narrow width
+  // For multi-row tiles (4,5,6,7,9): shorter per stick; for single-row (2,3): full height
+  const singleRow = (n===2||n===3);
+  const sw = isSmall ? 6  : 9;
+  const sh = isSmall
+    ? (singleRow ? 28 : 18)
+    : (singleRow ? 44 : 26);
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
       {pos.map(([cx,cy],i) => (
-        <BambooStick key={i} cx={cx} cy={cy} w={sw} h={sh} color={col[i]||'#1a7a3c'}/>
+        <BambooStick key={i} cx={cx} cy={cy} w={sw} h={sh} color={col[i]||GREEN}/>
       ))}
     </svg>
   );
@@ -999,7 +1012,7 @@ export default function App() {
       });
     },420);
     return()=>clearTimeout(t);
-  },[hand?.currentPlayer,hand?.phase,screen]);
+  },[hand?.currentPlayer,hand?.phase,hand?.turnCount,screen]);
 
   // Human draw
   useEffect(()=>{
