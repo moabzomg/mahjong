@@ -188,13 +188,13 @@ const S_POS = {
   9:  [[25,17],[50,17],[75,17],[25,50],[50,50],[75,50],[25,83],[50,83],[75,83]],
 };
 const S_COL = {
-  2: [GREEN, GREEN],
-  3: [GREEN, GREEN, GREEN],
-  4: [GREEN, GREEN, GREEN, GREEN],
-  5: [GREEN, GREEN, RED,   GREEN, GREEN],
-  6: [GREEN, GREEN, GREEN, GREEN, GREEN, GREEN],
-  7: [RED,   GREEN, GREEN, GREEN, GREEN, GREEN, GREEN],
-  9: [GREEN, GREEN, GREEN, GREEN, GREEN, GREEN, GREEN, GREEN, GREEN],
+  2: [G, G],
+  3: [G, G, G],
+  4: [G, G, G, G],
+  5: [G, G, R, G, G],
+  6: [G, G, G, G, G, G],
+  7: [R, G, G, G, G, G, G],
+  9: [G, G, G, G, G, G, G, G, G],
 };
 
 function SouFace({ n, isSmall }) {
