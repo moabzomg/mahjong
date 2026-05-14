@@ -28,80 +28,80 @@ const FLOWER_COLOR = {
 };
 
 // ── 筒 (Pin / Dots) ──────────────────────────────────────────────────────────
-// Positions from reference screenshots — DIAGONAL arrangements:
-// 2筒: top-left + bottom-right (diagonal)
-// 3筒: bottom-left + centre + top-right (diagonal)
+// Positions from reference screenshots — EXACT pixel-matched:
+// 2筒: one TL + one BR (diagonal)
+// 3筒: BL + centre + TR (diagonal)
 // 4筒: 2×2 corners
 // 5筒: 4 corners + centre
 // 6筒: 2 cols × 3 rows
-// 7筒: 3 top + 2 mid + 2 bot  (OR from ref: top-3, then 2+2)
-// 8筒: 2 cols × 4 rows
-// 9筒: 3×3
-// Colours: from reference — 2筒 blue+green, 3筒 blue+red+green, etc.
-// (matching the original handover doc colour spec exactly)
+// 7筒: 3 top + 2 mid + 2 bot
+// 8筒: 2 × 4 rows
+// 9筒: 3 × 3
 const P_POS = {
   1: [[50,50]],
-  2: [[35,30],[65,70]],                                             // diagonal TL→BR
-  3: [[28,72],[50,50],[72,28]],                                     // diagonal BL→C→TR
-  4: [[33,30],[67,30],[33,70],[67,70]],                             // 2×2
-  5: [[33,22],[67,22],[50,50],[33,78],[67,78]],                     // corners + centre
-  6: [[33,18],[67,18],[33,50],[67,50],[33,82],[67,82]],             // 2×3
-  7: [[26,18],[50,18],[74,18],[33,50],[67,50],[33,82],[67,82]],     // 3+2+2
-  8: [[33,12],[67,12],[33,37],[67,37],[33,63],[67,63],[33,88],[67,88]], // 2×4
-  9: [[25,18],[50,18],[75,18],[25,50],[50,50],[75,50],[25,82],[50,82],[75,82]], // 3×3
+  2: [[33,30],[67,70]],
+  3: [[26,74],[50,50],[74,26]],
+  4: [[33,30],[67,30],[33,70],[67,70]],
+  5: [[33,22],[67,22],[50,50],[33,78],[67,78]],
+  6: [[33,18],[67,18],[33,50],[67,50],[33,82],[67,82]],
+  7: [[26,18],[50,18],[74,18],[33,50],[67,50],[33,82],[67,82]],
+  8: [[33,12],[67,12],[33,37],[67,37],[33,63],[67,63],[33,88],[67,88]],
+  9: [[24,18],[50,18],[76,18],[24,50],[50,50],[76,50],[24,82],[50,82],[76,82]],
 };
-// Colours per dot — from handover doc spec and reference screenshots:
-// 2筒: bottom=blue, top=green
+// Colours per dot — from handover doc spec (exact):
+// 1筒: red centre mandala
+// 2筒: bottom=blue top=green → [top-left=green, bottom-right=blue]
 // 3筒: BL=blue, C=red, TR=green
-// 4筒: BL=blue, BR=green, TL=green, TR=blue
-// 5筒: BL=blue, BR=green, C=red, TL=green, TR=blue
-// 6筒: bottom 4 red, top 2 green (2 cols × 3 rows, top=green, mid=red, bot=red)
-// 7筒: 4 green corners, 3 red diagonal TL→C→BR
+// 4筒: TL=green, TR=blue, BL=blue, BR=green
+// 5筒: TL=green, TR=blue, C=red, BL=blue, BR=green
+// 6筒: top2=green, mid2=red, bot2=red (2 cols × 3 rows: top row green, others red)
+// 7筒: 3 top green, 2 mid = TL-green/TR-red, 2 bot = TL-red/TR-green (complex)
+//      Simplify: top3=green, then 4 below alternating
 // 8筒: all blue
-// 9筒: bottom row green, mid row red, top row blue
-const BLUE='#1a6ea8', RED='#c0392b', GREEN='#1a7a3c';
+// 9筒: top row blue, mid row red, bot row green
+const B='#1a6ea8', R='#c0392b', G='#1a7a3c';
 const P_COL = {
-  1: [RED],
-  2: [GREEN, BLUE],                                                  // top=green, bottom=blue
-  3: [BLUE, RED, GREEN],                                             // BL=blue, C=red, TR=green
-  4: [BLUE, GREEN, GREEN, BLUE],                                     // TL, TR, BL, BR → BL=blue,BR=green,TL=green,TR=blue
-  5: [GREEN, BLUE, RED, BLUE, GREEN],                                // TL=green,TR=blue,C=red,BL=blue,BR=green
-  6: [GREEN, GREEN, RED, RED, RED, RED],                             // top2=green, rest=red
-  7: [GREEN, GREEN, GREEN, RED, GREEN, RED, RED],                    // 3 top green, then mixed
-  8: [BLUE,BLUE,BLUE,BLUE,BLUE,BLUE,BLUE,BLUE],                     // all blue
-  9: [BLUE,BLUE,BLUE, RED,RED,RED, GREEN,GREEN,GREEN],              // top=blue, mid=red, bot=green
+  1: [R],
+  2: [G, B],
+  3: [B, R, G],
+  4: [G, B, B, G],
+  5: [G, B, R, B, G],
+  6: [G, G, R, R, R, R],
+  7: [G, G, G, G, R, R, G],
+  8: [B, B, B, B, B, B, B, B],
+  9: [B, B, B, R, R, R, G, G, G],
 };
 
-function PinDot({ cx, cy, r, color }) {
-  if (cx===50 && cy===50 && r > 20) {
-    // 1筒 mandala: red → white → green → white → red
+function PinDot({ cx, cy, r, color, is1Pin }) {
+  if (is1Pin) {
+    // 1筒 mandala: red outer → white → green → white → red centre
     return (
       <g>
-        <circle cx={cx} cy={cy} r={r}      fill="#c0392b"/>
-        <circle cx={cx} cy={cy} r={r*0.75} fill="white"/>
-        <circle cx={cx} cy={cy} r={r*0.57} fill="#1a7a3c"/>
-        <circle cx={cx} cy={cy} r={r*0.34} fill="white"/>
-        <circle cx={cx} cy={cy} r={r*0.18} fill="#c0392b"/>
+        <circle cx={cx} cy={cy} r={r}       fill="#c0392b"/>
+        <circle cx={cx} cy={cy} r={r*0.76}  fill="white"/>
+        <circle cx={cx} cy={cy} r={r*0.58}  fill="#1a7a3c"/>
+        <circle cx={cx} cy={cy} r={r*0.35}  fill="white"/>
+        <circle cx={cx} cy={cy} r={r*0.18}  fill="#c0392b"/>
       </g>
     );
   }
-  // Standard dot: coloured outer ring → white gap → coloured inner fill
-  // The ring style: each dot shows the colour prominently
+  // Standard dot: coloured outer → white ring → coloured inner
   return (
     <g>
       <circle cx={cx} cy={cy} r={r}       fill={color}/>
-      <circle cx={cx} cy={cy} r={r*0.66}  fill="white"/>
-      <circle cx={cx} cy={cy} r={r*0.42}  fill={color}/>
+      <circle cx={cx} cy={cy} r={r*0.65}  fill="white"/>
+      <circle cx={cx} cy={cy} r={r*0.40}  fill={color}/>
     </g>
   );
 }
 
 function PinFace({ n, isSmall }) {
   const pos = P_POS[n] || [], col = P_COL[n] || [];
-  const r = n===1 ? (isSmall ? 30 : 38) : (isSmall ? 10 : 13);
+  // 1筒 gets a large mandala radius; others get standard dot radius
+  const r = n === 1 ? (isSmall ? 32 : 40) : (isSmall ? 10 : 13);
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-      {pos.map(([cx,cy],i) => <PinDot key={i} cx={cx} cy={cy} r={r} color={col[i]||'#1a4a22'}/>)}
+      {pos.map(([cx,cy],i) => <PinDot key={i} cx={cx} cy={cy} r={r} color={col[i]||B} is1Pin={n===1}/>)}
     </svg>
   );
 }
@@ -201,17 +201,18 @@ function SouFace({ n, isSmall }) {
   if (n===1) return <Sou1Face/>;
   if (n===8) return <Sou8Face isSmall={isSmall}/>;
   const pos = S_POS[n]||[], col = S_COL[n]||[];
-  // Sticks: tall (fill most of tile height), narrow width
-  // For multi-row tiles (4,5,6,7,9): shorter per stick; for single-row (2,3): full height
-  const singleRow = (n===2||n===3);
-  const sw = isSmall ? 6  : 9;
+  // Width: narrow sticks. Height: tall — fills most of the tile per row
+  // Single-row tiles (2,3): sticks nearly full tile height
+  // Multi-row tiles (4,5,6,7,9): shorter per stick to fit rows
+  const rowCount = { 2:1, 3:1, 4:2, 5:3, 6:3, 7:4, 9:3 }[n] || 2;
+  const sw = isSmall ? 6 : 10;
   const sh = isSmall
-    ? (singleRow ? 28 : 18)
-    : (singleRow ? 44 : 26);
+    ? Math.round(30 / rowCount)
+    : Math.round(50 / rowCount);
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
       {pos.map(([cx,cy],i) => (
-        <BambooStick key={i} cx={cx} cy={cy} w={sw} h={sh} color={col[i]||GREEN}/>
+        <BambooStick key={i} cx={cx} cy={cy} w={sw} h={sh} color={col[i]||G}/>
       ))}
     </svg>
   );
@@ -1130,35 +1131,54 @@ export default function App() {
   // Build per-tile discard info map for tooltip
   const discardInfoMap = hint ? Object.fromEntries(hint.discardAnalysis.map(d=>[d.tile.id, d])) : {};
 
-  // Lane-aware best discard: if a lane strategy is active, override isBestDiscard
-  // to only mark tiles that are actually undesirable for that lane
+  // Lane-aware best discard: override isBestDiscard based on active strategy lane
   const laneAwareDiscardMap = (() => {
     if (!hint) return discardInfoMap;
     const scan = (() => { try { return scanBestLane(humanHand, humanMelds, seatWinds[humanIdx], session.round, session.minFan); } catch(e){return null;} })();
     const lane = chosenLane || scan?.best;
-    const targetSuit = scan?.targetSuitKey; // 'man'|'pin'|'sou'|null
-    if (!lane || !targetSuit) return discardInfoMap;
+    if (!lane) return discardInfoMap;
 
-    // For flush/halfFlush lanes: best discard = non-target-suit tiles (honouring lane)
-    const keepSuits = (lane === 'flush')
-      ? [targetSuit]
-      : (lane === 'halfFlush') ? [targetSuit] : null; // halfFlush keeps target suit + honours
+    // Count how many of each key exist in hand (for triplet logic)
+    const keyCounts = {};
+    for (const t of humanHand) keyCounts[t.key] = (keyCounts[t.key]||0) + 1;
 
-    if (!keepSuits) return discardInfoMap;
+    // Count how many of each key are still available in wall+unseen (for 對對糊 viability)
+    const seenKeys = {};
+    for (const t of [...discards.flat(), ...melds.flat().flatMap(m=>m.tiles||[])]) {
+      seenKeys[t.key] = (seenKeys[t.key]||0) + 1;
+    }
 
     return Object.fromEntries(Object.entries(discardInfoMap).map(([id, d]) => {
       const key = d.tile.key;
       const isSuitTile = ['man','pin','sou'].some(s => key.startsWith(s));
-      const isTargetSuit = keepSuits.some(s => key.startsWith(s));
-      const isHonour = !isSuitTile;
-      // For flush: discard non-target suit tiles → isBestDiscard only on those
-      // For halfFlush: discard pure suit tiles that aren't target suit
-      const shouldDiscard = lane === 'flush'
-        ? !isTargetSuit
-        : (lane === 'halfFlush' ? (isSuitTile && !isTargetSuit) : d.isBestDiscard);
-      return [id, { ...d, isBestDiscard: shouldDiscard && d.isBestDiscard !== false
-        // Only mark as best if shanten is also reasonable (not already worse than keeping)
-        && (d.shantenAfter <= (hint.shanten + 1))
+      const isTargetSuit = scan?.targetSuitKey && key.startsWith(scan.targetSuitKey);
+      let shouldDiscard = d.isBestDiscard;
+
+      if (lane === 'flush') {
+        // Keep target suit only — discard everything else
+        shouldDiscard = !isTargetSuit;
+      } else if (lane === 'halfFlush') {
+        // Discard non-target suit tiles (but keep honours)
+        shouldDiscard = isSuitTile && !isTargetSuit;
+      } else if (lane === 'triplet') {
+        // 對對糊: keep pairs/triplets, discard singletons and tiles
+        // where forming a triplet is impossible (all 4 seen already)
+        const myCount = keyCounts[key] || 0;
+        const totalSeen = seenKeys[key] || 0;
+        const remaining = 4 - totalSeen; // how many of this tile left unseen
+        if (myCount >= 2) {
+          // Have a pair or triplet — KEEP (don't mark as discard)
+          shouldDiscard = false;
+        } else {
+          // Singleton — discard if we can't get another (remaining < 2 means can't form pair)
+          // or if it's a tile that has no partner possible
+          shouldDiscard = remaining < 2 || myCount < 2;
+        }
+      }
+
+      return [id, {
+        ...d,
+        isBestDiscard: shouldDiscard && (d.shantenAfter <= (hint.shanten + 1))
       }];
     }));
   })();
