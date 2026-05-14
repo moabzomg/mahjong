@@ -28,68 +28,53 @@ const FLOWER_COLOR = {
 };
 
 // ── 筒 (Pin / Dots) ──────────────────────────────────────────────────────────
-// Positions from reference screenshots — EXACT pixel-matched:
-// 2筒: one TL + one BR (diagonal)
-// 3筒: BL + centre + TR (diagonal)
-// 4筒: 2×2 corners
-// 5筒: 4 corners + centre
-// 6筒: 2 cols × 3 rows
-// 7筒: 3 top + 2 mid + 2 bot
-// 8筒: 2 × 4 rows
-// 9筒: 3 × 3
+// From reference: ALL dots (2-9) are same dark colour with white ring.
+// Only 1筒 is a multicolour mandala target.
+// Dot positions [cx,cy] in 0-100 viewBox:
 const P_POS = {
   1: [[50,50]],
-  2: [[33,30],[67,70]],
-  3: [[26,74],[50,50],[74,26]],
-  4: [[33,30],[67,30],[33,70],[67,70]],
-  5: [[33,22],[67,22],[50,50],[33,78],[67,78]],
-  6: [[33,18],[67,18],[33,50],[67,50],[33,82],[67,82]],
-  7: [[26,18],[50,18],[74,18],[33,50],[67,50],[33,82],[67,82]],
-  8: [[33,12],[67,12],[33,37],[67,37],[33,63],[67,63],[33,88],[67,88]],
-  9: [[24,18],[50,18],[76,18],[24,50],[50,50],[76,50],[24,82],[50,82],[76,82]],
+  2: [[35,32],[65,68]],                                                    // diagonal TL→BR
+  3: [[28,72],[50,50],[72,28]],                                            // diagonal BL→C→TR
+  4: [[33,30],[67,30],[33,70],[67,70]],                                    // 2×2
+  5: [[33,22],[67,22],[50,50],[33,78],[67,78]],                            // corners+centre
+  6: [[33,18],[67,18],[33,50],[67,50],[33,82],[67,82]],                    // 2×3
+  7: [[26,18],[50,18],[74,18],[33,50],[67,50],[33,82],[67,82]],            // 3+2+2
+  8: [[33,12],[67,12],[33,37],[67,37],[33,63],[67,63],[33,88],[67,88]],    // 2×4
+  9: [[24,18],[50,18],[76,18],[24,50],[50,50],[76,50],[24,82],[50,82],[76,82]], // 3×3
 };
-// Colours per dot — from handover doc spec (exact):
-// 1筒: red centre mandala
-// 2筒: bottom=blue top=green → [top-left=green, bottom-right=blue]
-// 3筒: BL=blue, C=red, TR=green
-// 4筒: TL=green, TR=blue, BL=blue, BR=green
-// 5筒: TL=green, TR=blue, C=red, BL=blue, BR=green
-// 6筒: top2=green, mid2=red, bot2=red (2 cols × 3 rows: top row green, others red)
-// 7筒: 3 top green, 2 mid = TL-green/TR-red, 2 bot = TL-red/TR-green (complex)
-//      Simplify: top3=green, then 4 below alternating
-// 8筒: all blue
-// 9筒: top row blue, mid row red, bot row green
-const B='#1a6ea8', R='#c0392b', G='#1a7a3c';
+
+// All dots dark green with white ring — matches what reference shows
+const DOT = '#1a4a22'; // dark green for all standard dots
 const P_COL = {
-  1: [R],
-  2: [G, B],
-  3: [B, R, G],
-  4: [G, B, B, G],
-  5: [G, B, R, B, G],
-  6: [G, G, R, R, R, R],
-  7: [G, G, G, G, R, R, G],
-  8: [B, B, B, B, B, B, B, B],
-  9: [B, B, B, R, R, R, G, G, G],
+  1: ['#c0392b'],
+  2: [DOT,DOT],
+  3: [DOT,DOT,DOT],
+  4: [DOT,DOT,DOT,DOT],
+  5: [DOT,DOT,DOT,DOT,DOT],
+  6: [DOT,DOT,DOT,DOT,DOT,DOT],
+  7: [DOT,DOT,DOT,DOT,DOT,DOT,DOT],
+  8: [DOT,DOT,DOT,DOT,DOT,DOT,DOT,DOT],
+  9: [DOT,DOT,DOT,DOT,DOT,DOT,DOT,DOT,DOT],
 };
 
 function PinDot({ cx, cy, r, color, is1Pin }) {
   if (is1Pin) {
-    // 1筒 mandala: red outer → white → green → white → red centre
+    // 1筒 mandala bullseye: red → white → green → white → red
     return (
       <g>
         <circle cx={cx} cy={cy} r={r}       fill="#c0392b"/>
         <circle cx={cx} cy={cy} r={r*0.76}  fill="white"/>
-        <circle cx={cx} cy={cy} r={r*0.58}  fill="#1a7a3c"/>
+        <circle cx={cx} cy={cy} r={r*0.57}  fill="#1a7a3c"/>
         <circle cx={cx} cy={cy} r={r*0.35}  fill="white"/>
-        <circle cx={cx} cy={cy} r={r*0.18}  fill="#c0392b"/>
+        <circle cx={cx} cy={cy} r={r*0.17}  fill="#c0392b"/>
       </g>
     );
   }
-  // Standard dot: coloured outer → white ring → coloured inner
+  // Standard dot: dark outer → cream/white ring → dark inner (⊕ look)
   return (
     <g>
       <circle cx={cx} cy={cy} r={r}       fill={color}/>
-      <circle cx={cx} cy={cy} r={r*0.65}  fill="white"/>
+      <circle cx={cx} cy={cy} r={r*0.66}  fill="white"/>
       <circle cx={cx} cy={cy} r={r*0.40}  fill={color}/>
     </g>
   );
@@ -97,118 +82,106 @@ function PinDot({ cx, cy, r, color, is1Pin }) {
 
 function PinFace({ n, isSmall }) {
   const pos = P_POS[n] || [], col = P_COL[n] || [];
-  // 1筒 gets a large mandala radius; others get standard dot radius
   const r = n === 1 ? (isSmall ? 32 : 40) : (isSmall ? 10 : 13);
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
-      {pos.map(([cx,cy],i) => <PinDot key={i} cx={cx} cy={cy} r={r} color={col[i]||B} is1Pin={n===1}/>)}
+      {pos.map(([cx,cy],i) => <PinDot key={i} cx={cx} cy={cy} r={r} color={col[i]||DOT} is1Pin={n===1}/>)}
     </svg>
   );
 }
 
 // ── 索 (Sou / Bamboo) ────────────────────────────────────────────────────────
-// From screenshots: thin tall vertical green sticks, evenly spread across tile width
-// Stick width ≈ 8-10% of tile, height ≈ 65-75% of tile
-// Each stick: green rounded rect with a lighter left edge highlight + dark band in middle
-// 1索: green bird facing right
-// 8索: W (top) + M (bottom) arch shapes in thick green strokes
+// Reference: tall thin vertical green sticks with joint band in middle.
+// Sticks fill most of the tile height per row.
+// Stick dimensions (in 0-100 viewBox):
+//   width: 11 normal / 7 small
+//   height per row count:
+//     1 row  (2,3索): 72 tall
+//     2 rows (4索):   34 tall  (rows at cy=28,72, gap=44)
+//     3 rows (5,6,9): 24 tall  (rows spaced ~28 apart)
+//     4 rows (7索):   18 tall
+
+const G = '#1a7a3c';
+const R = '#c0392b';
+
+const S_ROWS = { 2:1, 3:1, 4:2, 5:3, 6:3, 7:4, 9:3 };
+const S_H    = { 1:72, 2:34, 3:24, 4:18 }; // height by row count
+const S_H_SM = { 1:46, 2:22, 3:15, 4:12 }; // small version
+
+const S_POS = {
+  2: [[35,50],[65,50]],
+  3: [[25,50],[50,50],[75,50]],
+  4: [[35,28],[65,28],[35,72],[65,72]],
+  5: [[35,20],[65,20],[50,50],[35,80],[65,80]],
+  6: [[35,17],[65,17],[35,50],[65,50],[35,83],[65,83]],
+  7: [[50,11],[35,34],[65,34],[35,57],[65,57],[35,80],[65,80]],
+  9: [[25,17],[50,17],[75,17],[25,50],[50,50],[75,50],[25,83],[50,83],[75,83]],
+};
+const S_COL = {
+  2: [G,G],
+  3: [G,G,G],
+  4: [G,G,G,G],
+  5: [G,G,R,G,G],   // centre red
+  6: [G,G,G,G,G,G],
+  7: [R,G,G,G,G,G,G], // top red
+  9: [G,G,G,G,G,G,G,G,G],
+};
 
 function BambooStick({ cx, cy, w, h, color }) {
-  const isRed = color === '#c0392b';
-  const dark = isRed ? '#7a1208' : '#0a3518';
-  const light = 'rgba(255,255,255,0.35)';
+  const dark = color === R ? '#6b0e0e' : '#0a3518';
   return (
     <g>
-      {/* Main stick body */}
-      <rect x={cx-w/2} y={cy-h/2} width={w} height={h} rx={w*0.38} ry={w*0.38} fill={color}/>
-      {/* Left highlight stripe */}
-      <rect x={cx-w/2+1} y={cy-h/2+3} width={w*0.28} height={h-6} rx={1} fill={light}/>
-      {/* Dark band across middle (joint) */}
-      <rect x={cx-w/2} y={cy-2} width={w} height={4} rx={2} fill={dark} opacity={0.55}/>
+      <rect x={cx-w/2} y={cy-h/2} width={w} height={h} rx={w*0.35} fill={color}/>
+      <rect x={cx-w/2+1.5} y={cy-h/2+3} width={w*0.28} height={h-6} rx={1} fill="rgba(255,255,255,0.32)"/>
+      <rect x={cx-w/2} y={cy-2.5} width={w} height={5} rx={2.5} fill={dark} opacity={0.5}/>
     </g>
   );
 }
 
-// 1索: green bird facing right with tail feathers
 function Sou1Face() {
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
       <line x1={15} y1={82} x2={85} y2={80} stroke="#5a3a10" strokeWidth={3} strokeLinecap="round"/>
       <line x1={52} y1={81} x2={52} y2={92} stroke="#5a3a10" strokeWidth={2.5} strokeLinecap="round"/>
-      {/* Body */}
-      <ellipse cx={50} cy={60} rx={18} ry={13} fill="#1a7a3c"/>
-      {/* Wing highlight */}
+      <ellipse cx={50} cy={60} rx={18} ry={13} fill={G}/>
       <ellipse cx={38} cy={63} rx={13} ry={8} fill="#27ae60" transform="rotate(-10,38,63)"/>
-      {/* Head */}
-      <circle cx={68} cy={47} r={12} fill="#1a7a3c"/>
-      {/* Eye */}
+      <circle cx={68} cy={47} r={12} fill={G}/>
       <circle cx={72} cy={43} r={3.5} fill="white"/>
       <circle cx={73} cy={43} r={1.8} fill="#111"/>
-      {/* Beak */}
       <polygon points="76,48 88,44 76,51" fill="#e8b84d"/>
-      {/* Crest */}
-      <path d="M65,37 Q61,23 66,16" stroke="#1a7a3c" strokeWidth={3.5} fill="none" strokeLinecap="round"/>
+      <path d="M65,37 Q61,23 66,16" stroke={G} strokeWidth={3.5} fill="none" strokeLinecap="round"/>
       <path d="M70,36 Q70,21 75,15" stroke="#27ae60" strokeWidth={2.5} fill="none" strokeLinecap="round"/>
-      {/* Tail feathers */}
-      <path d="M33,62 Q10,46 12,26" stroke="#1a7a3c" strokeWidth={4} fill="none" strokeLinecap="round"/>
+      <path d="M33,62 Q10,46 12,26" stroke={G} strokeWidth={4} fill="none" strokeLinecap="round"/>
       <path d="M31,67 Q8,58 10,42"  stroke="#27ae60" strokeWidth={3} fill="none" strokeLinecap="round"/>
-      <path d="M33,72 Q12,74 14,62" stroke="#c0392b" strokeWidth={3} fill="none" strokeLinecap="round"/>
+      <path d="M33,72 Q12,74 14,62" stroke={R} strokeWidth={3} fill="none" strokeLinecap="round"/>
       <path d="M35,76 Q18,82 20,72" stroke="#e8b84d" strokeWidth={2.5} fill="none" strokeLinecap="round"/>
     </svg>
   );
 }
 
-// 8索: W shape on top + M shape on bottom — bold thick green strokes
 function Sou8Face({ isSmall }) {
-  const g = '#1a7a3c';
   const sw = isSmall ? 5 : 8.5;
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
       <path d="M5,42 L22,8 L50,34 L78,8 L95,42"
-        stroke={g} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+        stroke={G} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" fill="none"/>
       <path d="M5,58 L22,92 L50,66 L78,92 L95,58"
-        stroke={g} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+        stroke={G} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" fill="none"/>
       <path d="M5,42 L22,8 L50,34 L78,8 L95,42"
-        stroke="rgba(255,255,255,0.2)" strokeWidth={sw*0.35} strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+        stroke="rgba(255,255,255,0.22)" strokeWidth={sw*0.35} strokeLinecap="round" strokeLinejoin="round" fill="none"/>
       <path d="M5,58 L22,92 L50,66 L78,92 L95,58"
-        stroke="rgba(255,255,255,0.2)" strokeWidth={sw*0.35} strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+        stroke="rgba(255,255,255,0.22)" strokeWidth={sw*0.35} strokeLinecap="round" strokeLinejoin="round" fill="none"/>
     </svg>
   );
 }
-
-// Sou stick grid layouts — cx spread evenly, cy always centred at 50
-// Sticks are TALL (nearly full tile height) and THIN, spread horizontally
-const S_POS = {
-  2:  [[35,50],[65,50]],
-  3:  [[25,50],[50,50],[75,50]],
-  4:  [[35,28],[65,28],[35,72],[65,72]],
-  5:  [[35,20],[65,20],[50,50],[35,80],[65,80]],
-  6:  [[35,17],[65,17],[35,50],[65,50],[35,83],[65,83]],
-  7:  [[50,12],[35,35],[65,35],[35,58],[65,58],[35,82],[65,82]],
-  9:  [[25,17],[50,17],[75,17],[25,50],[50,50],[75,50],[25,83],[50,83],[75,83]],
-};
-const S_COL = {
-  2: [G, G],
-  3: [G, G, G],
-  4: [G, G, G, G],
-  5: [G, G, R, G, G],
-  6: [G, G, G, G, G, G],
-  7: [R, G, G, G, G, G, G],
-  9: [G, G, G, G, G, G, G, G, G],
-};
 
 function SouFace({ n, isSmall }) {
   if (n===1) return <Sou1Face/>;
   if (n===8) return <Sou8Face isSmall={isSmall}/>;
   const pos = S_POS[n]||[], col = S_COL[n]||[];
-  // Width: narrow sticks. Height: tall — fills most of the tile per row
-  // Single-row tiles (2,3): sticks nearly full tile height
-  // Multi-row tiles (4,5,6,7,9): shorter per stick to fit rows
-  const rowCount = { 2:1, 3:1, 4:2, 5:3, 6:3, 7:4, 9:3 }[n] || 2;
-  const sw = isSmall ? 6 : 10;
-  const sh = isSmall
-    ? Math.round(30 / rowCount)
-    : Math.round(50 / rowCount);
+  const rows = S_ROWS[n] || 2;
+  const sw = isSmall ? 7 : 11;
+  const sh = isSmall ? S_H_SM[rows] : S_H[rows];
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
       {pos.map(([cx,cy],i) => (
@@ -219,7 +192,6 @@ function SouFace({ n, isSmall }) {
 }
 
 // ── 萬 (Man) ─────────────────────────────────────────────────────────────────
-// From screenshots: large bold black Chinese numeral, red 萬 below, both filling the tile
 function ManFace({ n, isSmall }) {
   const numSz = isSmall ? '1.1em' : '1.7em';
   const wanSz = isSmall ? '0.72em' : '1.1em';
@@ -233,8 +205,6 @@ function ManFace({ n, isSmall }) {
 }
 
 // ── Honour tiles ──────────────────────────────────────────────────────────────
-// 白板: white tile with blue double-border rectangle only — no character
-// Others: large bold character filling tile
 function HonourFace({ tkey, isSmall }) {
   if (tkey === 'haku') {
     return (
@@ -253,6 +223,7 @@ function HonourFace({ tkey, isSmall }) {
     </div>
   );
 }
+
 
 const FLOWER_META = {
   plum:         { ch:'梅', n:'一', emoji:'🌸', isSeason:false },
