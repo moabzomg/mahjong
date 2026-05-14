@@ -82,7 +82,9 @@ function PinDot({ cx, cy, r, color, is1Pin }) {
 
 function PinFace({ n, isSmall }) {
   const pos = P_POS[n] || [], col = P_COL[n] || [];
-  const r = n === 1 ? (isSmall ? 32 : 40) : (isSmall ? 10 : 13);
+  // 1筒: mandala fills most of tile. Others: standard ring dots.
+  // Viewbox is 0-100. For n=1, r=38 means diameter=76 which fits with padding.
+  const r = n === 1 ? (isSmall ? 26 : 36) : (isSmall ? 9 : 12);
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" style={{display:'block'}}>
       {pos.map(([cx,cy],i) => <PinDot key={i} cx={cx} cy={cy} r={r} color={col[i]||DOT} is1Pin={n===1}/>)}
@@ -105,8 +107,10 @@ const G = '#1a7a3c';
 const R = '#c0392b';
 
 const S_ROWS = { 2:1, 3:1, 4:2, 5:3, 6:3, 7:4, 9:3 };
-const S_H    = { 1:72, 2:34, 3:24, 4:18 }; // height by row count
-const S_H_SM = { 1:46, 2:22, 3:15, 4:12 }; // small version
+// Heights must be less than the spacing between rows to avoid overlap
+// Row positions: 1-row cy=50; 2-row cy=28,72 (gap=44); 3-row cy=17,50,83 (gap=33); 4-row gap=23
+const S_H    = { 1:70, 2:32, 3:22, 4:16 };
+const S_H_SM = { 1:44, 2:20, 3:14, 4:11 };
 
 const S_POS = {
   2: [[35,50],[65,50]],
@@ -819,7 +823,7 @@ function StrategyPanel({ tiles, melds, seatWind, roundWind, minFan, chosenLane, 
           return (
             <button key={lane}
               className={`strategy-lane-btn${isChosen?' chosen':''}${isBest?' best':''}${!isViable?' dim':''}`}
-              onClick={()=>onChoose(lane===chosenLane?null:lane)}>
+              onClick={()=>onChoose(isChosen?null:lane)}>
               {isBest && <span className="sl-rank-best">推</span>}
               <span className="sl-name">{laneLabel(lane)}</span>
             </button>
@@ -1149,7 +1153,8 @@ export default function App() {
 
       return [id, {
         ...d,
-        isBestDiscard: shouldDiscard && (d.shantenAfter <= (hint.shanten + 1))
+        isBestDiscard: shouldDiscard,
+        leadsToTenpai: d.leadsToTenpai && !shouldDiscard, // tenpai hint only on tiles we're keeping
       }];
     }));
   })();
